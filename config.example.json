@@ -1,0 +1,36 @@
+{
+  "port": 8081,
+  "host": "127.0.0.1",
+  "retry_attempts": 3,
+  "retry_delay_sec": 2,
+  "retry_max_delay_sec": 30,
+  "request_timeout_sec": 180,
+  "request_read_timeout_sec": 300,
+  "max_concurrent_upstream": 4,
+  "model_refresh_sec": 900,
+  "auto_continue": false,
+  "auto_continue_long_form": false,
+  "max_continuations": 2,
+  "long_form_min_chars": 6000,
+  "gemini_bl": "boq_assistant-bard-web-server_20260716.08_p0",
+  "auth_user": null,
+  "xsrf_token": null,
+  "default_model": "gemini-3.6-flash",
+  "api_keys": [
+    "sk-gemini"
+  ],
+  "max_request_bytes": 8388608,
+  "cors_origins": [],
+  "advertise_external_models": true,
+  "cookie_file": null,
+  "proxy": null,
+  "log_requests": true,
+  "temporary_chats": false,
+  "models": {
+    "gemini-3.8-flash-custom": {
+      "mode": 1,
+      "think": 4,
+      "desc": "Local alias for the Gemini Flash web category"
+    }
+  }
+}

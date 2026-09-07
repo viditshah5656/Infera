@@ -1,0 +1,16 @@
+{
+  "port": 8081,
+  "host": "0.0.0.0",
+  "retry_attempts": 10,
+  "retry_delay_sec": 1,
+  "request_timeout_sec": 300,
+  "gemini_bl": "boq_assistant-bard-web-server_20260904.05_p0",
+  "auth_user": null,
+  "xsrf_token": null,
+  "default_model": "gemini-3.7-thinking",
+  "api_keys": [],
+  "cookie_file": "cookie.txt",
+  "proxy": null,
+  "log_requests": true,
+  "temporary_chats": true
+}
