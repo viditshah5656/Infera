@@ -1,0 +1,20 @@
+# Local credentials and runtime configuration
+.env
+.env.*
+!.env.example
+config.json
+cookie.txt
+*.cookie
+
+# Dependencies and generated output
+node_modules/
+**/node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+
+# Local logs and editor state
+*.log
+.vscode/

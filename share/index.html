@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Script Share</title>
+  <style>
+    :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+    body { margin: 0; background: #f3f5f7; color: #17202a; }
+    main { max-width: 960px; margin: 0 auto; padding: 40px 20px; }
+    header { display: flex; justify-content: space-between; gap: 20px; align-items: start; margin-bottom: 28px; }
+    h1 { margin: 0; font-size: 2rem; } p { color: #5c6873; }
+    .privacy { border: 1px solid #b7dfc6; background: #effaf2; color: #25613a; padding: 8px 12px; border-radius: 6px; white-space: nowrap; }
+    .layout { display: grid; grid-template-columns: 220px 1fr; gap: 20px; }
+    section, aside { background: white; border: 1px solid #d8dee4; border-radius: 8px; padding: 18px; }
+    aside button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 9px; border-radius: 5px; cursor: pointer; }
+    aside button:hover, aside button.active { background: #eaf1ff; color: #1454b8; }
+    label { display: block; margin: 14px 0 6px; font-weight: 600; }
+    input, textarea { box-sizing: border-box; width: 100%; border: 1px solid #b9c2cc; border-radius: 5px; padding: 10px; font: inherit; background: transparent; }
+    textarea { min-height: 320px; resize: vertical; font-family: ui-monospace, monospace; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    button.action { border: 1px solid #aab5c0; border-radius: 5px; padding: 8px 12px; background: white; cursor: pointer; }
+    button.primary { background: #155eef; color: white; border-color: #155eef; }
+    .notice { border-left: 3px solid #155eef; padding-left: 10px; color: #5c6873; }
+    @media (prefers-color-scheme: dark) { body { background: #101418; color: #ecf1f5; } section, aside, button.action { background: #171d23; border-color: #34404c; } .privacy { background: #13271b; } input, textarea { border-color: #465463; } }
+    @media (max-width: 680px) { header { display: block; } .privacy { display: inline-block; margin-top: 12px; } .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><p>LOCAL / SHARE</p><h1>Local Script Library</h1><p>Save and share scripts without signing in or contacting Gemini, GLM, or DeepSeek.</p></div>
+    <div class="privacy">No provider connection</div>
+  </header>
+  <div class="layout">
+    <aside><strong>My scripts</strong><button id="newButton" type="button">+ New script</button><div id="scriptList"></div></aside>
+    <section>
+      <div class="actions"><button class="action" id="importButton" type="button">Import</button><input id="fileInput" type="file" accept="application/json,.json" hidden><button class="action" id="exportButton" type="button">Export</button><button class="action" id="shareButton" type="button">Copy share link</button><button class="action primary" id="saveButton" type="button">Save locally</button></div>
+      <label for="title">Title</label><input id="title" placeholder="Example: release checklist">
+      <label for="content">Script</label><textarea id="content" placeholder="Write a script or prompt here..."></textarea>
+      <p id="notice" class="notice" hidden></p>
+    </section>
+  </div>
+</main>
+<script>
+  const KEY = 'gemini-web2api-local-scripts';
+  const $ = (id) => document.getElementById(id);
+  let scripts = readScripts();
+  let selectedId = null;
+  function readScripts() { try { const value = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
+  function persist() { localStorage.setItem(KEY, JSON.stringify(scripts)); renderList(); }
+  function notice(text) { $('notice').textContent = text; $('notice').hidden = !text; }
+  function reset() { selectedId = null; $('title').value = 'Untitled script'; $('content').value = ''; notice(''); renderList(); }
+  function renderList() { $('scriptList').innerHTML = ''; scripts.forEach((script) => { const button = document.createElement('button'); button.type = 'button'; button.textContent = script.title; button.className = selectedId === script.id ? 'active' : ''; button.onclick = () => { selectedId = script.id; $('title').value = script.title; $('content').value = script.content; notice(''); renderList(); }; $('scriptList').appendChild(button); }); }
+  function utf8Base64(text) { const bytes = new TextEncoder().encode(text); let binary = ''; bytes.forEach((byte) => binary += String.fromCharCode(byte)); return btoa(binary); }
+  function sharedScript() { try { if (!location.hash.startsWith('#script=')) return null; const bytes = Uint8Array.from(atob(decodeURIComponent(location.hash.slice(8))), (char) => char.charCodeAt(0)); return JSON.parse(new TextDecoder().decode(bytes)); } catch { return null; } }
+  $('newButton').onclick = reset;
+  $('saveButton').onclick = () => { const title = $('title').value.trim(), content = $('content').value; if (!title || !content.trim()) return notice('Add a title and script first.'); const script = { id: selectedId || crypto.randomUUID(), title, content, updatedAt: Date.now() }; scripts = [script, ...scripts.filter((item) => item.id !== script.id)]; selectedId = script.id; persist(); notice('Saved only in this browser.'); };
+  $('shareButton').onclick = async () => { const title = $('title').value.trim(), content = $('content').value; if (!title || !content.trim()) return notice('Add a title and script first.'); const encoded = encodeURIComponent(utf8Base64(JSON.stringify({ title, content }))); const url = location.origin + location.pathname + '#script=' + encoded; try { await navigator.clipboard.writeText(url); notice('Share link copied. It contains no account or provider credentials.'); } catch { prompt('Copy this share link:', url); } };
+  $('exportButton').onclick = () => { const blob = new Blob([JSON.stringify({ title: $('title').value, content: $('content').value }, null, 2)], { type: 'application/json' }); const anchor = document.createElement('a'); anchor.href = URL.createObjectURL(blob); anchor.download = ($('title').value.trim() || 'script') + '.json'; anchor.click(); URL.revokeObjectURL(anchor.href); };
+  $('importButton').onclick = () => $('fileInput').click();
+  $('fileInput').onchange = () => { const file = $('fileInput').files[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { const script = JSON.parse(reader.result); $('title').value = script.title; $('content').value = script.content; selectedId = null; notice('File loaded. Save it to keep a local copy.'); } catch { notice('Invalid script JSON file.'); } }; reader.readAsText(file); };
+  const incoming = sharedScript(); if (incoming && typeof incoming.title === 'string' && typeof incoming.content === 'string') { $('title').value = incoming.title; $('content').value = incoming.content; notice('Shared script loaded. Save it to keep a local copy.'); } else reset();
+  renderList();
+</script>
+</body>
+</html>

@@ -65,13 +65,11 @@ DEFAULT_CONFIG = {
     "request_read_timeout_sec": 300,
     "max_concurrent_upstream": 4,
     "model_refresh_sec": 900,
-    # A web response is already terminal when the upstream closes the
-    # stream.  Continuing by default is especially harmful for agents:
-    # prompts often contain words such as "detailed" or "subagents" and
-    # used to trigger several surprise generations.
-    "auto_continue": False,
-    "auto_continue_long_form": False,
-    "max_continuations": 2,
+    # Gemini Web may close a response at a generation boundary. Continue
+    # mechanically incomplete answers automatically, with a hard bound.
+    "auto_continue": True,
+    "auto_continue_long_form": True,
+    "max_continuations": 4,
     "long_form_min_chars": 6000,
     "gemini_bl": "boq_assistant-bard-web-server_20260716.08_p0",
     "auth_user": None,
@@ -88,6 +86,10 @@ DEFAULT_CONFIG = {
 }
 
 CONFIG = dict(DEFAULT_CONFIG)
+
+# A streaming client may close its socket after receiving enough output. On
+# Windows this is commonly reported as ConnectionAbortedError (10053).
+CLIENT_DISCONNECT_ERRORS = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)
 
 # ─── Models ──────────────────────────────────────────────────────────────────
 # Mapping from JS source: MODE_CATEGORY enum (028-6eb337387583.js)
@@ -149,19 +151,8 @@ MODELS = {
     "gemini-2.5-flash-lite": {"mode": 6, "think": 4, "desc": "Gemini 2.5 Flash-Lite"},
     "gemini-flash-latest": {"mode": 1, "think": 4, "desc": "Gemini Flash Latest alias"},
     "gemini-pro-latest": {"mode": 3, "think": 0, "desc": "Gemini Pro Latest alias"},
-    # Google Antigravity selectable reasoning model IDs. Antigravity uses a
-    # unified model selector; these aliases make them addressable by OpenCode.
-    "gemini-3.8-flash-medium": {"mode": 1, "think": 4, "desc": "Antigravity Gemini 3.8 Flash Medium"},
-    "gemini-3.7-flash-medium": {"mode": 1, "think": 4, "desc": "Antigravity Gemini 3.7 Flash Medium"},
-    "gemini-3.6-flash-medium": {"mode": 1, "think": 4, "desc": "Antigravity Gemini 3.6 Flash Medium"},
-    "gemini-3.1-pro-high": {"mode": 3, "think": 0, "desc": "Antigravity Gemini 3.1 Pro High"},
-    "claude-sonnet-4.6-thinking": {"mode": 3, "think": 0, "desc": "Antigravity Claude Sonnet 4.6 Thinking", "provider": "anthropic"},
-    "claude-sonnet-4.6": {"mode": 3, "think": 0, "desc": "Antigravity Claude Sonnet 4.6", "provider": "anthropic"},
-    "claude-opus-4.6-thinking": {"mode": 3, "think": 0, "desc": "Antigravity Claude Opus 4.6 Thinking", "provider": "anthropic"},
-    "claude-opus-4.6": {"mode": 3, "think": 0, "desc": "Antigravity Claude Opus 4.6", "provider": "anthropic"},
-    "gpt-oss-120b-medium": {"mode": 3, "think": 0, "desc": "Antigravity GPT-OSS 120B Medium", "provider": "openai-oss"},
-    "gpt-oss-120b": {"mode": 3, "think": 0, "desc": "Antigravity GPT-OSS 120B", "provider": "openai-oss"},
 }
+
 
 _UPSTREAM_SEMAPHORE = None
 _UPSTREAM_SEMAPHORE_LIMIT = None
@@ -218,7 +209,7 @@ def retry_delay(attempt: int, response=None) -> float:
     return min(cap, base * (2 ** attempt)) + random.uniform(0, min(1.0, base))
 
 
-def iter_with_heartbeats(iterator, interval=10.0):
+def iter_with_heartbeats(iterator, interval=3.0):
     """Consume a blocking upstream iterator while keeping SSE clients alive."""
     events = queue.Queue()
 
@@ -755,6 +746,9 @@ def response_looks_incomplete(text: str) -> bool:
         return False
     if value.count("```") % 2:
         return True
+    last_line = value.splitlines()[-1].strip() if value.splitlines() else value
+    if re.match(r"^(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+|```)", last_line):
+        return True
     if value.endswith((":", ",", ";", "—", "-", "and", "or", "but", "with", "to")):
         return True
     return value.endswith(("(", "[", "{"))
@@ -796,10 +790,8 @@ def stream_with_continuations(prompt: str, model_id: Any, think_mode: Any, file_
     answer = ""
     current_prompt = prompt
     rounds = 0
-    # Keep a hard upper bound even when an older config file still contains
-    # the previous value of 8. Agent clients must never create an unbounded
-    # chain of hidden follow-up requests.
-    max_rounds = min(2, max(0, int(CONFIG.get("max_continuations", 2))))
+    # Allow up to 10 continuation rounds for long 20k+ token code output
+    max_rounds = min(10, max(0, int(CONFIG.get("max_continuations", 8))))
     while True:
         emitted = []
         for delta in gemini_stream_generate_iter(current_prompt, model_id, think_mode, file_refs):
@@ -894,12 +886,19 @@ def messages_to_prompt(messages: list[Any], tools: Optional[list[Any]] = None) -
             })
         if tool_defs:
             tools_json = json.dumps(tool_defs, indent=2)
-            # (Removed size limit stripping so Copilot/RooCode agent tools work properly)
             parts.append(
-                "[System instruction]: You have access to tools. "
-                "To call a tool, respond with:\n"
+                "[System instruction]: You are an agentic coding assistant with access to tools. "
+                "Use tools to inspect the repository and perform the work; do not pretend that an "
+                "edit, command, or test succeeded. For coding tasks, first inspect the relevant "
+                "files and nearby tests, make the smallest focused change, then run the narrowest "
+                "useful validation. Continue using tools until the requested behavior is actually "
+                "verified. Keep the user updated briefly between meaningful steps.\n\n"
+                "To call a tool, respond using exactly this format:\n"
                 '```tool_call\n{"name": "func_name", "arguments": {...}}\n```\n'
-                "Only use tool_call blocks when needed.\n\n"
+                "Never use XML tags, ordinary JSON, or any other tool-call format. Never wrap a "
+                "tool call in an ordinary markdown code block, and do not emit a "
+                "narrative answer in the same turn as a tool call. Only use a tool when it moves "
+                "the task forward; after receiving its result, reassess the next concrete step.\n\n"
                 f"Available tools:\n{tools_json}"
             )
     for msg in messages:
@@ -931,7 +930,10 @@ def messages_to_prompt(messages: list[Any], tools: Optional[list[Any]] = None) -
             else:
                 parts.append(f"[Assistant]: {content}")
         elif role == "tool":
-            parts.append(f"[Tool result for {msg.get('name', '')}]: {content}")
+            tool_name = msg.get("name", "")
+            tool_id = msg.get("tool_call_id", "")
+            label = f"{tool_name} ({tool_id})" if tool_name and tool_id else tool_name or tool_id
+            parts.append(f"[Tool result{f' for {label}' if label else ''}]: {content}")
         else:
             parts.append(content if content else "")
     return "\n\n".join(p for p in parts if p), images
@@ -944,7 +946,11 @@ def apply_openai_generation_policy(prompt: str, req: dict) -> str:
     must be allowed to finish. These instructions preserve the user's intent
     while keeping the request compatible with the web protocol.
     """
-    policy = []
+    policy = [
+        "Answer completely in this response. Do not stop merely because the answer is long.",
+        "Use the available space efficiently: finish code, steps, lists, and explanations rather than summarizing them prematurely.",
+        "If the task requires multiple sections, write all sections in order and end at a natural conclusion.",
+    ]
     reasoning = req.get("reasoning")
     if isinstance(reasoning, dict):
         effort = reasoning.get("effort")
@@ -959,8 +965,6 @@ def apply_openai_generation_policy(prompt: str, req: dict) -> str:
             policy.append("This is a long-form request. Continue across sections until the answer is complete.")
     elif isinstance(reasoning, dict) and reasoning.get("effort") in ("high", "xhigh"):
         policy.append("This is a long-form request. Give a complete, deeply checked answer.")
-    if not policy:
-        return prompt
     return prompt + "\n\n[Generation policy]\n" + "\n".join(policy)
 
 
@@ -1003,23 +1007,38 @@ def google_contents_to_prompt(req: dict) -> tuple:
 
 
 def parse_tool_calls(text: str) -> tuple:
-    """Extract tool_call blocks. Returns (clean_text, tool_calls_list)."""
+    """Extract common tool-call blocks without treating ordinary JSON as a call."""
     tool_calls = []
-    pattern = r'```tool_call\s*\n(.*?)\n```'
-    for match in re.findall(pattern, text, re.DOTALL):
+    patterns = (
+        r'```tool_call\s*\n(.*?)\n```',
+        r'<tool_call>\s*(.*?)\s*</tool_call>',
+    )
+    matches = []
+    for pattern in patterns:
+        matches.extend((match, pattern) for match in re.findall(pattern, text, re.DOTALL | re.IGNORECASE))
+    for match, _ in matches:
         try:
             data = json.loads(match.strip())
+            if not isinstance(data, dict) or not isinstance(data.get("name"), str):
+                continue
+            arguments = data.get("arguments", {})
+            if isinstance(arguments, str):
+                arguments = json.loads(arguments)
+            if not isinstance(arguments, dict):
+                continue
             tool_calls.append({
                 "id": f"call_{uuid.uuid4().hex[:8]}",
                 "type": "function",
                 "function": {
                     "name": data["name"],
-                    "arguments": json.dumps(data.get("arguments", {}), ensure_ascii=False),
+                    "arguments": json.dumps(arguments, ensure_ascii=False),
                 },
             })
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, TypeError):
             pass
-    clean = re.sub(pattern, '', text, flags=re.DOTALL).strip()
+    clean = text
+    for pattern in patterns:
+        clean = re.sub(pattern, '', clean, flags=re.DOTALL | re.IGNORECASE)
     return clean, tool_calls
 
 
@@ -1031,15 +1050,18 @@ class GeminiHandler(BaseHTTPRequestHandler):
         log(f"{client_ip} {format % args}")
 
     def send_json(self, data, status=200):
-        body = json.dumps(data, ensure_ascii=False).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Cache-Control", "no-store")
-        self._send_cors_headers()
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            body = json.dumps(data, ensure_ascii=False).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Cache-Control", "no-store")
+            self._send_cors_headers()
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except CLIENT_DISCONNECT_ERRORS:
+            pass
 
     def _send_cors_headers(self):
         origin = self.headers.get("Origin")
@@ -1094,7 +1116,7 @@ class GeminiHandler(BaseHTTPRequestHandler):
                                 "models": list(MODELS.keys())})
             else:
                 self.send_json({"error": "not found"}, 404)
-        except (BrokenPipeError, ConnectionResetError):
+        except CLIENT_DISCONNECT_ERRORS:
             pass
         except Exception as e:
             log(f"GET error: {e}")
@@ -1115,7 +1137,7 @@ class GeminiHandler(BaseHTTPRequestHandler):
                 self._handle_google_generate(body, stream=False)
             else:
                 self.send_json({"error": "not found"}, 404)
-        except (BrokenPipeError, ConnectionResetError):
+        except CLIENT_DISCONNECT_ERRORS:
             pass
         except ValueError as e:
             log(f"Invalid request: {e}")
@@ -1124,7 +1146,7 @@ class GeminiHandler(BaseHTTPRequestHandler):
             log(f"POST error: {e}")
             try:
                 self.send_json({"error": {"message": "internal server error"}}, 500)
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_ERRORS:
                 pass
 
     def _read_request_body(self) -> bytes:
@@ -1171,7 +1193,8 @@ class GeminiHandler(BaseHTTPRequestHandler):
                 return None, None, None, f"Invalid think value: {think_str}"
         cfg = MODELS.get(model_name)
         if not cfg:
-            return None, None, None, f"Unknown model: {model_name}"
+            default_model = CONFIG.get("default_model", "gemini-auto")
+            cfg = MODELS.get(default_model, MODELS.get("gemini-auto", {"mode": 4, "think": 4, "desc": "Gemini Auto"}))
         return model_name, cfg["mode"], (think_override if think_override is not None else cfg["think"]), None
 
     def _call_gemini(self, prompt, model_id, think_mode, tools, file_refs=None):
@@ -1181,7 +1204,7 @@ class GeminiHandler(BaseHTTPRequestHandler):
         # middle of a structured answer, continue with bounded follow-ups and
         # preserve the already generated text.
         rounds = 0
-        max_rounds = min(2, max(0, int(CONFIG.get("max_continuations", 2))))
+        max_rounds = min(4, max(0, int(CONFIG.get("max_continuations", 4))))
         while CONFIG.get("auto_continue", False) and (
             response_looks_incomplete(text)
             or (CONFIG.get("auto_continue_long_form", False)
@@ -1227,13 +1250,18 @@ class GeminiHandler(BaseHTTPRequestHandler):
             return
 
         if stream:
-            # Smart streaming: forwards text instantly, buffers tool calls if detected
+            # Stream directly with real-time SSE token delivery and streaming tool call support.
             try:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("X-Accel-Buffering", "no")
                 self._send_cors_headers()
                 self.end_headers()
+                if hasattr(self.request, 'setsockopt'):
+                    import socket
+                    self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 self.wfile.write(b": phase=connecting\n\n")
                 first_chunk = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()),
                                "model": model_name, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]}
@@ -1257,18 +1285,23 @@ class GeminiHandler(BaseHTTPRequestHandler):
                     buffer += delta_text
 
                     if not in_tool_mode:
-                        # Check if tool_call is starting
+                        # Check if a supported tool call is starting.
+                        tool_marker = None
                         if "```tool_call" in buffer:
+                            tool_marker = "```tool_call"
+                        elif "<tool_call>" in buffer.lower():
+                            tool_marker = "<tool_call>"
+                        if tool_marker:
                             self.wfile.write(b": phase=tool_call\n\n")
                             self.wfile.flush()
-                            parts = buffer.split("```tool_call")
+                            parts = buffer.split(tool_marker, 1) if tool_marker == "```tool_call" else re.split(r"<tool_call>", buffer, maxsplit=1, flags=re.IGNORECASE)
                             # Flush the text before the tool call
                             if parts[0]:
                                 chunk = {"id": cid, "object": "chat.completion.chunk", "created": int(time.time()),
                                          "model": model_name, "choices": [{"index": 0, "delta": {"content": parts[0]}, "finish_reason": None}]}
                                 self.wfile.write(f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n".encode())
                                 self.wfile.flush()
-                            buffer = "```tool_call" + parts[1]
+                            buffer = tool_marker + parts[1]
                             in_tool_mode = True
                         elif "```" in buffer:
                             # Might be starting a tool call, wait for more text
@@ -1283,13 +1316,17 @@ class GeminiHandler(BaseHTTPRequestHandler):
                                 buffer = ""
 
                     if in_tool_mode:
-                        if "```\n" in buffer or buffer.endswith("```"):
+                        if ("```\n" in buffer or buffer.endswith("```")
+                                or "</tool_call>" in buffer.lower()):
                             # Complete tool call received
                             import re as _re
-                            match = _re.search(r'```tool_call\s*\n(.*?)\n```', buffer, _re.DOTALL)
+                            match = _re.search(
+                                r'```tool_call\s*\n(.*?)\n```|<tool_call>\s*(.*?)\s*</tool_call>',
+                                buffer, _re.DOTALL | _re.IGNORECASE
+                            )
                             if match:
                                 try:
-                                    tc_data = json.loads(match.group(1).strip())
+                                    tc_data = json.loads((match.group(1) or match.group(2)).strip())
                                     fn_name = tc_data.get("name", "")
                                     fn_args = json.dumps(tc_data.get("arguments", {}), ensure_ascii=False)
                                     tc_chunk = {
@@ -1305,7 +1342,9 @@ class GeminiHandler(BaseHTTPRequestHandler):
                                     pass
 
                             # Reset buffer after tool call
-                            buffer = buffer[buffer.find("```", 12) + 3:]
+                            end_marker = "```" if buffer.lower().startswith("```tool_call") else "</tool_call>"
+                            end_index = buffer.lower().find(end_marker.lower(), len(tool_marker or ""))
+                            buffer = buffer[end_index + len(end_marker):] if end_index >= 0 else ""
                             if buffer.startswith("\n"): buffer = buffer[1:]
                             in_tool_mode = False
 
@@ -1323,7 +1362,7 @@ class GeminiHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b"data: [DONE]\n\n")
                 self.wfile.write(b": phase=completed\n\n")
                 self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_ERRORS:
                 pass
             except Exception as e:
                 log(f"Stream error: {e}")

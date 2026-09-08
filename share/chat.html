@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Web2API AI Chat — Real Token Streaming</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --sidebar: #161b22;
+      --card: #21262d;
+      --border: #30363d;
+      --text: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --green: #3fb950;
+      --amber: #d29922;
+      --red: #f85149;
+      --code-bg: #11151c;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    /* Layout */
+    .sidebar {
+      width: 320px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    /* Header */
+    .header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--sidebar);
+    }
+    .header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+    .status-badge.streaming {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      border-color: rgba(88, 166, 255, 0.3);
+    }
+    .status-badge.error {
+      background: rgba(248, 81, 73, 0.15);
+      color: var(--red);
+      border-color: rgba(248, 81, 73, 0.3);
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+    /* Controls in sidebar */
+    .sidebar-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: var(--text-muted); }
+    select, input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card);
+      color: var(--text);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus, input:focus { border-color: var(--accent); }
+    /* Live telemetry */
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .telemetry-card {
+      background: var(--card);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .telemetry-val {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: monospace;
+    }
+    .telemetry-lbl {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    /* Event Log Stream */
+    .event-log-container {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      background: #090d13;
+    }
+    .event-line {
+      padding: 3px 0;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .event-line .time { color: #6e7681; }
+    .event-line.ev-token { color: #7ee787; }
+    .event-line.ev-phase { color: #d2a8ff; font-weight: 600; }
+    .event-line.ev-error { color: var(--red); font-weight: 600; }
+    /* Chat stream */
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .message {
+      display: flex;
+      gap: 14px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .avatar.user { background: #1f6feb; color: white; }
+    .avatar.assistant { background: #238636; color: white; }
+    .content-box {
+      flex: 1;
+      line-height: 1.6;
+      font-size: 0.95rem;
+      overflow-wrap: break-word;
+    }
+    .content-box pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 10px 0;
+      position: relative;
+    }
+    .content-box code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88rem;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .copy-btn:hover { color: var(--text); background: var(--border); }
+    /* Live stream cursor */
+    .streaming-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background: var(--accent);
+      vertical-align: middle;
+      margin-left: 2px;
+      animation: blink 0.9s infinite;
+    }
+    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    /* Input area */
+    .input-area {
+      padding: 16px 24px;
+      background: var(--sidebar);
+      border-top: 1px solid var(--border);
+    }
+    .input-wrapper {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    textarea {
+      flex: 1;
+      padding: 12px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      resize: none;
+      min-height: 50px;
+      max-height: 200px;
+      outline: none;
+      line-height: 1.5;
+    }
+    textarea:focus { border-color: var(--accent); }
+    .send-btn {
+      padding: 12px 20px;
+      background: var(--accent);
+      color: #0d1117;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    .send-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-clear {
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .btn-clear:hover { background: var(--card); color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <!-- Left: Controls & Telemetry & Event Stream -->
+  <aside class="sidebar">
+    <div class="header">
+      <h1>⚡ Live Web2API</h1>
+      <button class="btn-clear" onclick="clearChat()">Clear</button>
+    </div>
+
+    <!-- Model Selector -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">Model Configuration</div>
+      <label for="modelSelect">Select Model</label>
+      <select id="modelSelect"><option value="gemini-3.8-flash">Loading cloud models...</option></select>
+    </div>
+
+    <!-- Live Telemetry -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">Real-Time Telemetry</div>
+      <div class="telemetry-grid">
+        <div class="telemetry-card">
+          <div class="telemetry-val" id="valTps">0.0</div>
+          <div class="telemetry-lbl">Tokens / Sec</div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-val" id="valTokens">0</div>
+          <div class="telemetry-lbl">Total Tokens</div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-val" id="valTtft">0 ms</div>
+          <div class="telemetry-lbl">First Token (TTFT)</div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-val" id="valElapsed">0.0 s</div>
+          <div class="telemetry-lbl">Elapsed Time</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live SSE Events Stream -->
+    <div class="sidebar-section" style="padding-bottom: 8px;">
+      <div class="sidebar-title">Live SSE Event Stream</div>
+    </div>
+    <div class="event-log-container" id="eventLogs">
+      <div class="event-line"><span class="time">[00:00:00]</span> SSE Event monitor initialized. Ready.</div>
+    </div>
+  </aside>
+
+  <!-- Right: Chat interface -->
+  <main class="main">
+    <div class="header">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span id="currentModelLabel" style="font-weight: 600; font-size: 0.95rem;">gemini-3.8-flash</span>
+        <span class="status-badge" id="statusBadge"><span class="dot"></span> Ready</span>
+      </div>
+      <div style="color: var(--text-muted); font-size: 0.8rem;">
+        Zero API Keys • Pure Web2API Streaming
+      </div>
+    </div>
+
+    <!-- Chat Messages -->
+    <div class="chat-container" id="chatContainer">
+      <div class="message">
+        <div class="avatar assistant">AI</div>
+        <div class="content-box">
+          <p><strong>Welcome to Web2API.</strong> Real token-by-token streaming is active.</p>
+          <p style="margin-top:6px; color:var(--text-muted);">
+            Pick a model on the left, type a prompt, and watch each token render live with real-time speed metrics and raw SSE event monitoring.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <div class="input-wrapper">
+        <textarea id="promptInput" placeholder="Ask a question or request code... (Shift+Enter for newline, Enter to send)" rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const chatContainer = document.getElementById('chatContainer');
+    const promptInput = document.getElementById('promptInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const statusBadge = document.getElementById('statusBadge');
+    const eventLogs = document.getElementById('eventLogs');
+    const valTps = document.getElementById('valTps');
+    const valTokens = document.getElementById('valTokens');
+    const valTtft = document.getElementById('valTtft');
+    const valElapsed = document.getElementById('valElapsed');
+    const currentModelLabel = document.getElementById('currentModelLabel');
+
+    let conversation = [];
+    let isStreaming = false;
+
+    function modelGroup(model) {
+      const owner = String(model.owned_by || '').toLowerCase();
+      const id = String(model.id || '').toLowerCase();
+      if (owner.includes('qwen') || id.startsWith('qwen') || id.startsWith('qwq')) return '🐉 Qwen Cloud';
+      if (owner.includes('openai') || id.startsWith('gpt-') || id.startsWith('o1') || id.startsWith('o3') || id.startsWith('o4') || id.startsWith('chatgpt')) return '🤖 ChatGPT Cloud';
+      if (owner.includes('anthropic') || id.startsWith('claude')) return '🧠 Claude';
+      return '⚡ Gemini Cloud';
+    }
+
+    async function loadCloudModels() {
+      const previous = localStorage.getItem('unified-selected-model') || modelSelect.value;
+      try {
+        const response = await fetch('/v1/models', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Model discovery failed (${response.status})`);
+        const payload = await response.json();
+        const models = Array.isArray(payload.data) ? payload.data.filter((model) => model && model.id) : [];
+        if (!models.length) throw new Error('No cloud models available');
+
+        const groups = new Map();
+        models.forEach((model) => {
+          const group = modelGroup(model);
+          if (!groups.has(group)) groups.set(group, []);
+          groups.get(group).push(model);
+        });
+        modelSelect.replaceChildren();
+        groups.forEach((entries, label) => {
+          const optgroup = document.createElement('optgroup');
+          optgroup.label = label;
+          entries.sort((left, right) => String(left.id).localeCompare(String(right.id)));
+          entries.forEach((model) => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.id;
+            optgroup.appendChild(option);
+          });
+          modelSelect.appendChild(optgroup);
+        });
+        modelSelect.value = models.some((model) => model.id === previous) ? previous : models[0].id;
+        currentModelLabel.textContent = modelSelect.value;
+        logEvent(`Loaded ${models.length} cloud models`, 'phase');
+      } catch (error) {
+        logEvent(error.message, 'error');
+      }
+    }
+
+    modelSelect.addEventListener('change', () => {
+      currentModelLabel.textContent = modelSelect.value;
+      localStorage.setItem('unified-selected-model', modelSelect.value);
+      logEvent(`Model switched to ${modelSelect.value}`, 'phase');
+      promptInput.focus();
+    });
+
+    loadCloudModels();
+
+    // Auto-expand textarea
+    promptInput.addEventListener('input', () => {
+      promptInput.style.height = 'auto';
+      promptInput.style.height = Math.min(promptInput.scrollHeight, 200) + 'px';
+    });
+
+    promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function logEvent(text, type = '') {
+      const now = new Date().toTimeString().split(' ')[0];
+      const div = document.createElement('div');
+      div.className = `event-line ${type ? 'ev-' + type : ''}`;
+      div.innerHTML = `<span class="time">[${now}]</span> ${escapeHtml(text)}`;
+      eventLogs.appendChild(div);
+      eventLogs.scrollTop = eventLogs.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderMarkdown(text) {
+      let html = escapeHtml(text);
+      // Code blocks ```lang\ncode\n```
+      html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (m, lang, code) => {
+        return `<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${code}</code></pre>`;
+      });
+      // Inline code
+      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+      // Bold
+      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      // Italic
+      html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      // Newlines to <br> outside <pre>
+      const parts = html.split(/(<pre[\s\S]*?<\/pre>)/g);
+      for (let i = 0; i < parts.length; i++) {
+        if (!parts[i].startsWith('<pre')) {
+          parts[i] = parts[i].replace(/\n/g, '<br>');
+        }
+      }
+      return parts.join('');
+    }
+
+    function copyCode(btn) {
+      const code = btn.parentElement.querySelector('code').innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
+    }
+
+    function clearChat() {
+      if (isStreaming) return;
+      conversation = [];
+      chatContainer.innerHTML = '';
+      logEvent('Conversation cleared', 'phase');
+    }
+
+    async function sendMessage() {
+      const prompt = promptInput.value.trim();
+      if (!prompt || isStreaming) return;
+
+      const model = modelSelect.value;
+      promptInput.value = '';
+      promptInput.style.height = 'auto';
+
+      // Append User message
+      conversation.push({ role: 'user', content: prompt });
+      appendMessage('user', prompt);
+
+      // Create Assistant placeholder
+      const assistantBox = appendMessage('assistant', '');
+      const cursor = document.createElement('span');
+      cursor.className = 'streaming-cursor';
+      assistantBox.appendChild(cursor);
+
+      isStreaming = true;
+      sendBtn.disabled = true;
+      statusBadge.className = 'status-badge streaming';
+      statusBadge.innerHTML = '<span class="dot"></span> Streaming';
+
+      // Reset Telemetry
+      valTokens.textContent = '0';
+      valTps.textContent = '0.0';
+      valTtft.textContent = '...';
+      valElapsed.textContent = '0.0 s';
+
+      const startTime = performance.now();
+      let firstTokenTime = null;
+      let tokenCount = 0;
+      let fullText = '';
+      let streamError = null;
+
+      logEvent(`Connecting to /v1/chat/completions (model: ${model})...`, 'phase');
+
+      try {
+        const res = await fetch('/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: model,
+            messages: conversation,
+            stream: true,
+          }),
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`HTTP ${res.status}: ${errText}`);
+        }
+
+        logEvent('SSE connection established (HTTP 200). Receiving stream...', 'phase');
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep remainder
+
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) continue;
+
+            if (line.startsWith(':')) {
+              // SSE comment / heartbeat
+              logEvent(line, 'phase');
+              continue;
+            }
+
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6).trim();
+              if (dataStr === '[DONE]') {
+                logEvent('Stream received [DONE]', 'phase');
+                break;
+              }
+
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.error) {
+                  streamError = parsed.error.message || parsed.error.details || 'Upstream model error';
+                  logEvent(`Upstream error: ${streamError}`, 'error');
+                  break;
+                }
+                if (parsed.choices?.[0]?.finish_reason === 'error') {
+                  streamError = 'The upstream model reported an error';
+                  logEvent(`Upstream error: ${streamError}`, 'error');
+                  break;
+                }
+                const delta = parsed.choices?.[0]?.delta?.content;
+                if (delta) {
+                  if (!firstTokenTime) {
+                    firstTokenTime = performance.now();
+                    const ttftMs = Math.round(firstTokenTime - startTime);
+                    valTtft.textContent = `${ttftMs} ms`;
+                    logEvent(`First token arrived in ${ttftMs} ms`, 'phase');
+                  }
+
+                  tokenCount++;
+                  fullText += delta;
+
+                  // Update Telemetry
+                  const elapsedSec = (performance.now() - startTime) / 1000;
+                  const tps = (tokenCount / (elapsedSec || 0.001)).toFixed(1);
+                  valTokens.textContent = tokenCount;
+                  valTps.textContent = tps;
+                  valElapsed.textContent = `${elapsedSec.toFixed(1)} s`;
+
+                  // Update UI text
+                  assistantBox.innerHTML = renderMarkdown(fullText);
+                  assistantBox.appendChild(cursor);
+                  chatContainer.scrollTop = chatContainer.scrollHeight;
+
+                  if (tokenCount % 10 === 0 || delta.length > 5) {
+                    logEvent(`delta: "${delta.replace(/\n/g, '\\n')}" (${tps} tok/s)`, 'token');
+                  }
+                }
+              } catch (e) {
+                // Ignore parse errors on raw events
+              }
+            }
+          }
+        }
+
+        if (streamError) throw new Error(streamError);
+
+        // Finished streaming
+        if (cursor.parentNode) cursor.remove();
+        assistantBox.innerHTML = renderMarkdown(fullText);
+        conversation.push({ role: 'assistant', content: fullText });
+
+        const totalElapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+        const finalTps = (tokenCount / (parseFloat(totalElapsed) || 0.001)).toFixed(1);
+        valElapsed.textContent = `${totalElapsed} s`;
+        valTps.textContent = finalTps;
+
+        logEvent(`Generation complete: ${tokenCount} tokens in ${totalElapsed}s (${finalTps} tps)`, 'phase');
+        statusBadge.className = 'status-badge';
+        statusBadge.innerHTML = '<span class="dot"></span> Ready';
+
+      } catch (err) {
+        logEvent(`Error: ${err.message}`, 'error');
+        if (cursor.parentNode) cursor.remove();
+        assistantBox.innerHTML += `<p style="color:var(--red); margin-top:10px;">⚠️ Stream error: ${escapeHtml(err.message)}</p>`;
+        statusBadge.className = 'status-badge error';
+        statusBadge.innerHTML = '<span class="dot"></span> Error';
+      } finally {
+        isStreaming = false;
+        sendBtn.disabled = false;
+        promptInput.focus();
+      }
+    }
+
+    function appendMessage(role, content) {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message';
+      const avatarDiv = document.createElement('div');
+      avatarDiv.className = `avatar ${role}`;
+      avatarDiv.textContent = role === 'user' ? 'U' : 'AI';
+
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'content-box';
+      contentDiv.innerHTML = renderMarkdown(content);
+
+      msgDiv.appendChild(avatarDiv);
+      msgDiv.appendChild(contentDiv);
+      chatContainer.appendChild(msgDiv);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      return contentDiv;
+    }
+  </script>
+</body>
+</html>

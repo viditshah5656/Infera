@@ -1,0 +1,27 @@
+{
+  "name": "qwen2api",
+  "version": "1.0.0",
+  "description": "Qwen Chat to OpenAI API compatible proxy",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "cross-env CHAT_DETAIL_LOG=true JSON_BODY_LIMIT=100mb MIN_VIDEO_RESOLUTION=480 nodemon index.js",
+    "build:chat-html": "node scripts/build-chat-html.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy-worker": "npx wrangler deploy"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "nodemon": "^3.1.14"
+  }
+}

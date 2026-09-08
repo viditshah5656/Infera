@@ -1,0 +1,95 @@
+{
+  "project": "Universal Web2API Gateway — Gemini, Qwen, ChatGPT & Claude",
+  "description": "Single unified endpoint for real reverse-engineered Web2API models without API keys with 20k token allowance and full Claude/Codex compatibility",
+  "unified_api": {
+    "host": "127.0.0.1",
+    "port": 8081,
+    "baseUrl": "http://127.0.0.1:8081/v1",
+    "endpoints": {
+      "chat_ui": "GET /chat",
+      "health": "GET /health",
+      "models": "GET /v1/models",
+      "chat": "POST /v1/chat/completions",
+      "claude_messages": "POST /v1/messages",
+      "codex_responses": "POST /v1/responses",
+      "images": "POST /v1/images/generations"
+    }
+  },
+  "backends": {
+    "gemini": {
+      "url": "http://127.0.0.1:8082",
+      "type": "Gemini Web2API (Zero Auth, 20k token auto-continue)",
+      "command": "python gemini_web2api.py --port 8082"
+    },
+    "qwen2api": {
+      "url": "http://127.0.0.1:8765",
+      "type": "Qwen2API (chat.qwen.ai — dynamic model discovery, baxia auth, image gen)",
+      "command": "cd qwen2api && node index.js"
+    },
+    "chatgpt": {
+      "url": "http://127.0.0.1:5000",
+      "type": "ChatGPT API (reverse-chatgpt)",
+      "command": "cd reverse-chatgpt && venv\\Scripts\\python.exe -m uvicorn app:app --host 127.0.0.1 --port 5000"
+    }
+  },
+  "models": {
+    "gemini": [
+      "gemini-3.8-flash",
+      "gemini-3.8-flash-thinking",
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-thinking",
+      "gemini-3.1-pro",
+      "gemini-auto",
+      "gemini-flash-lite",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash"
+    ],
+    "qwen": "(dynamic — all models fetched automatically from Qwen Cloud via qwen2api, including qwen3.8-max, qwen3.7-plus, qwen3.7-max, qwq-32b, etc.)",
+    "chatgpt": [
+      "gpt-4o",
+      "gpt-4o-mini",
+      "gpt-4.1",
+      "gpt-4.1-mini",
+      "gpt-4.1-nano",
+      "o3",
+      "o4-mini",
+      "o3-mini",
+      "o1",
+      "o1-mini",
+      "o1-preview",
+      "gpt-4",
+      "gpt-4-turbo",
+      "gpt-3.5-turbo",
+      "chatgpt-4o-latest"
+    ],
+    "claude": [
+      "claude-3-7-sonnet",
+      "claude-3-7-sonnet-20250219",
+      "claude-3-5-sonnet",
+      "claude-3-5-sonnet-20241022",
+      "claude-3-5-haiku",
+      "claude-3-5-haiku-20241022",
+      "claude-3-opus",
+      "claude-3-opus-20240229",
+      "claude-haiku-4-5"
+    ]
+  },
+  "agent_config": {
+    "openai_compatible": {
+      "baseURL": "http://127.0.0.1:8081/v1",
+      "apiKey": "any-string-or-empty",
+      "modelId": "gemini-3.8-flash-thinking"
+    },
+    "claude_code": {
+      "ANTHROPIC_BASE_URL": "http://127.0.0.1:8081",
+      "ANTHROPIC_API_KEY": "any-key",
+      "model": "claude-3-7-sonnet"
+    },
+    "codex_cli": {
+      "OPENAI_BASE_URL": "http://127.0.0.1:8081/v1",
+      "model": "gpt-4o"
+    }
+  }
+}
