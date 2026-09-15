@@ -45,20 +45,52 @@ try {
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $py = Join-Path $root ".venv\Scripts\python.exe"
+$localUrl = "http://127.0.0.1:8081"
+
+# If the local gateway is already running, do not spawn duplicate services.
+try {
+  Invoke-WebRequest -Uri "$localUrl/health" -UseBasicParsing -TimeoutSec 2 | Out-Null
+  Start-Process "$localUrl/chat"
+  exit 0
+} catch {}
+
 Start-Process -FilePath $py -ArgumentList "gemini_web2api.py --port 8082" -WorkingDirectory $root
 Start-Process -FilePath $py -ArgumentList "-m uvicorn app:app --app-dir reverse-chatgpt --host 127.0.0.1 --port 5000" -WorkingDirectory $root
 Start-Process -FilePath "npm.cmd" -ArgumentList "start" -WorkingDirectory (Join-Path $root "qwen2api")
 Start-Process -FilePath "npm.cmd" -ArgumentList "run router" -WorkingDirectory $root
-Start-Sleep -Seconds 4
+
+# Give the router a moment to bind, then open the local chat workspace.
+for ($i = 0; $i -lt 30; $i++) {
+  Start-Sleep -Milliseconds 500
+  try {
+    Invoke-WebRequest -Uri "$localUrl/health" -UseBasicParsing -TimeoutSec 2 | Out-Null
+    Start-Process "$localUrl/chat"
+    exit 0
+  } catch {}
+}
+
 Start-Process "https://viditshah5656.github.io/Infera/"
 '@
   Set-Content -Path "$root\Start-Infera.ps1" -Value $launcher -Encoding UTF8
-  $cmd = '@echo off\npowershell -ExecutionPolicy Bypass -File "%~dp0Start-Infera.ps1"\n'
+  $cmd = '@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Start-Infera.ps1" %*
+'
   Set-Content -Path "$root\Start-Infera.cmd" -Value $cmd -Encoding ASCII
 
+  # Register a private local URL scheme so the public Infera website can start
+  # the local gateway without requiring a repository clone.
+  $protocolRoot = "HKCU:\Software\Classes\infera"
+  New-Item -Path $protocolRoot -Force | Out-Null
+  Set-ItemProperty -Path $protocolRoot -Name '(default)' -Value 'URL:Infera Local Launcher'
+  New-ItemProperty -Path $protocolRoot -Name 'URL Protocol' -Value '' -PropertyType String -Force | Out-Null
+  New-Item -Path "$protocolRoot\shell\open\command" -Force | Out-Null
+  $handler = "`"$root\Start-Infera.cmd`" `%1"
+  Set-ItemProperty -Path "$protocolRoot\shell\open\command" -Name '(default)' -Value $handler
+
   Write-Host "Infera installed successfully." -ForegroundColor Green
-  Write-Host "Start-Infera.cmd was created in $root" -ForegroundColor Cyan
-  Write-Host "The browser UI will talk to http://127.0.0.1:8081 only." -ForegroundColor Cyan
+  Write-Host "Local launcher: $root\Start-Infera.cmd" -ForegroundColor Cyan
+  Write-Host "Protocol: infera://start" -ForegroundColor Cyan
+  Write-Host "Gateway: http://127.0.0.1:8081" -ForegroundColor Cyan
   Start-Process "$root\Start-Infera.cmd"
 } finally {
   Pop-Location
