@@ -59,6 +59,19 @@ const CHATGPT_MODELS = [
   "auto",
   "gpt-4o-mini",
   "gpt-4o",
+  "gpt-4.1",
+  "gpt-4.1-mini",
+  "gpt-4.1-nano",
+  "o3",
+  "o4-mini",
+  "o3-mini",
+  "o1",
+  "o1-mini",
+  "o1-preview",
+  "gpt-4",
+  "gpt-4-turbo",
+  "gpt-3.5-turbo",
+  "chatgpt-4o-latest",
 ];
 
 // ─── Dynamic Qwen Models (fetched from qwen2api) ────────────────────────────
@@ -194,7 +207,9 @@ function isChatGPTModel(model: string): boolean {
   const normalized = (model || "").toLowerCase().trim();
   if (chatgptModels.some((m) => m.toLowerCase() === normalized)) return true;
   if (CHATGPT_MODELS.some((m) => m.toLowerCase() === normalized)) return true;
-  return false;
+  // Keep GPT aliases on the ChatGPT backend even when its /v1/models
+  // endpoint is temporarily unavailable during router startup.
+  return /^(?:gpt-|o[134](?:-|$)|chatgpt-)/i.test(normalized);
 }
 
 function getBackendUrl(model: string): string {
@@ -205,8 +220,10 @@ function getBackendUrl(model: string): string {
     return QWEN2API_BACKEND;
   }
 
-  // ChatGPT models -> Firefox-backed ChatGPT API (port 5000)
+  // ChatGPT models normally use the web backend. When that anonymous session
+  // is blocked, Gemini is the reliable local fallback for Codex Responses.
   if (isChatGPTModel(normalized)) {
+    if (process.env.CHATGPT_BACKEND_DISABLED === "1") return GEMINI_BACKEND;
     return CHATGPT_BACKEND;
   }
 
@@ -578,17 +595,56 @@ async function handleClaudeMessages(req: IncomingMessage, res: ServerResponse, b
 type StoredResponse = {
   messages: any[];
   createdAt: number;
+  sessionId: string;
+  model: string;
 };
 
 const responseStore = new Map<string, StoredResponse>();
-const RESPONSE_STORE_TTL_MS = 30 * 60 * 1000;
+const RESPONSE_STORE_TTL_MS = 24 * 60 * 60 * 1000;
+const RESPONSE_STORE_MAX = 5000;
+const RESPONSE_JOURNAL = process.env.MEERA_RESPONSE_JOURNAL?.trim() || path.join(path.dirname(fileURLToPath(import.meta.url)), "meera_response_journal.jsonl");
+
+function getOrCreateSessionId(body: any, previous?: StoredResponse): string {
+  const supplied = typeof body?.metadata?.meera_session_id === "string" ? body.metadata.meera_session_id.trim() : "";
+  if (supplied) return supplied;
+  if (previous?.sessionId) return previous.sessionId;
+  return `meera_${crypto.randomUUID().replace(/-/g, "")}`;
+}
+
+function persistResponse(id: string, value: StoredResponse): void {
+  try {
+    fs.appendFileSync(RESPONSE_JOURNAL, JSON.stringify({ id, ...value }) + "\n", "utf8");
+  } catch (err: any) {
+    console.warn(`[Router] Could not persist response ${id}: ${err?.message || err}`);
+  }
+}
+
+function loadResponseJournal(): void {
+  try {
+    if (!fs.existsSync(RESPONSE_JOURNAL)) return;
+    const raw = fs.readFileSync(RESPONSE_JOURNAL, "utf8");
+    for (const line of raw.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      try {
+        const row = JSON.parse(line);
+        if (row?.id && Array.isArray(row.messages) && row.sessionId) {
+          responseStore.set(row.id, { messages: row.messages, createdAt: row.createdAt || Date.now(), sessionId: row.sessionId, model: row.model || "" });
+        }
+      } catch {}
+    }
+    pruneResponseStore();
+    console.log(`[Router] Restored ${responseStore.size} persisted Responses sessions`);
+  } catch (err: any) {
+    console.warn(`[Router] Response journal restore failed: ${err?.message || err}`);
+  }
+}
 
 function pruneResponseStore(): void {
   const cutoff = Date.now() - RESPONSE_STORE_TTL_MS;
   for (const [id, value] of responseStore) {
     if (value.createdAt < cutoff) responseStore.delete(id);
   }
-  while (responseStore.size > 100) {
+  while (responseStore.size > RESPONSE_STORE_MAX) {
     const first = responseStore.keys().next().value;
     if (first) responseStore.delete(first);
     else break;
@@ -610,7 +666,7 @@ function responseInputToMessages(body: any): any[] {
         continue;
       }
       if (!item || typeof item !== "object") continue;
-      if (item.type === "function_call_output") {
+      if (item.type === "function_call_output" || item.type === "custom_tool_call_output") {
         messages.push({
           role: "tool",
           tool_call_id: item.call_id || item.id || "",
@@ -619,14 +675,18 @@ function responseInputToMessages(body: any): any[] {
         });
         continue;
       }
-      if (item.type === "function_call") {
+      if (item.type === "function_call" || item.type === "custom_tool_call") {
         messages.push({
           role: "assistant",
           content: null,
           tool_calls: [{
             id: item.call_id || item.id,
             type: "function",
-            function: { name: item.name, arguments: item.arguments || "{}" },
+            function: {
+              name: item.name,
+              arguments: item.arguments
+                || (typeof item.input === "string" ? JSON.stringify({ input: item.input }) : JSON.stringify(item.input ?? {})),
+            },
           }],
         });
         continue;
@@ -646,19 +706,96 @@ function responseInputToMessages(body: any): any[] {
 
 function responseToolsToChatTools(tools: any): any[] | undefined {
   if (!Array.isArray(tools) || tools.length === 0) return undefined;
-  return tools
-    .filter((tool) => tool?.type === "function" || tool?.function || tool?.name)
-    .map((tool) => {
-      if (tool.function) return tool;
-      return {
+
+  const flattened: any[] = [];
+
+  const addTool = (tool: any, namespace?: string) => {
+    if (!tool || typeof tool !== "object") return;
+
+    // Custom Responses providers sometimes receive Codex MCP tools wrapped in
+    // a namespace object. Most Chat Completions Web2APIs only understand
+    // top-level function tools, so flatten the namespace here.
+    if (tool.type === "namespace" && Array.isArray(tool.tools)) {
+      const ns = typeof tool.name === "string" ? tool.name : "";
+      for (const child of tool.tools) addTool(child, ns);
+      return;
+    }
+
+    if (tool.type === "custom" && tool.name) {
+      // Freeform/custom Responses tools have no JSON schema. For a generic
+      // Chat Completions backend expose them as a function with a single
+      // string input so the backend can still produce a structured call.
+      const rawName = tool.name;
+      flattened.push({
         type: "function",
         function: {
-          name: tool.name,
+          name: namespace && namespace !== "functions"
+            ? `${namespace}__${rawName}`
+            : rawName,
+          description: tool.description || "",
+          parameters: {
+            type: "object",
+            properties: {
+              input: { type: "string" },
+            },
+            required: ["input"],
+          },
+        },
+      });
+      return;
+    }
+
+    if (tool.type === "function" && tool.function) {
+      const fn = { ...tool.function };
+      const rawName = fn.name || tool.name || "";
+      fn.name = namespace && namespace !== "functions"
+        ? `${namespace}__${rawName}`
+        : rawName;
+      flattened.push({ type: "function", function: fn });
+      return;
+    }
+
+    if (tool.type === "function" && tool.name) {
+      const rawName = tool.name;
+      flattened.push({
+        type: "function",
+        function: {
+          name: namespace && namespace !== "functions"
+            ? `${namespace}__${rawName}`
+            : rawName,
           description: tool.description || "",
           parameters: tool.parameters || {},
         },
-      };
-    });
+      });
+      return;
+    }
+
+    if (tool.function && typeof tool.function === "object") {
+      const fn = { ...tool.function };
+      const rawName = fn.name || tool.name || "";
+      fn.name = namespace && namespace !== "functions"
+        ? `${namespace}__${rawName}`
+        : rawName;
+      flattened.push({ type: "function", function: fn });
+      return;
+    }
+
+    if (tool.name) {
+      flattened.push({
+        type: "function",
+        function: {
+          name: namespace && namespace !== "functions"
+            ? `${namespace}__${tool.name}`
+            : tool.name,
+          description: tool.description || "",
+          parameters: tool.parameters || {},
+        },
+      });
+    }
+  };
+
+  for (const tool of tools) addTool(tool);
+  return flattened.length ? flattened : undefined;
 }
 
 function chatMessageToResponseOutput(message: any): any[] {
@@ -680,10 +817,20 @@ function chatMessageToResponseOutput(message: any): any[] {
       id: `msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
       role: "assistant",
       status: "completed",
+      phase: "final_answer",
       content: [{ type: "output_text", text: text || "", annotations: [] }],
     });
   }
   return output;
+}
+
+function responseOutputText(output: any[]): string {
+  return output
+    .filter((item) => item?.type === "message")
+    .flatMap((item) => Array.isArray(item.content) ? item.content : [])
+    .filter((part) => part?.type === "output_text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("");
 }
 
 function writeResponseEvent(res: ServerResponse, type: string, sequence: number, fields: any): void {
@@ -691,170 +838,561 @@ function writeResponseEvent(res: ServerResponse, type: string, sequence: number,
   res.write(`event: ${type}\ndata: ${JSON.stringify(event)}\n\n`);
 }
 
+function buildCanonicalResponseFields(body: any, model: string, responseId: string, createdAt: number, status: string, output: any[], usage: any): any {
+  return {
+    id: responseId,
+    object: "response",
+    created_at: createdAt,
+    status,
+    error: null,
+    incomplete_details: null,
+    instructions: typeof body.instructions === "string" ? body.instructions : null,
+    max_output_tokens: body.max_output_tokens ?? body.max_tokens ?? null,
+    model,
+    output,
+    parallel_tool_calls: body.parallel_tool_calls !== false,
+    previous_response_id: body.previous_response_id || null,
+    reasoning: body.reasoning || { effort: null, summary: null },
+    store: body.store !== false,
+    temperature: body.temperature ?? 1,
+    text: body.text || { format: { type: "text" } },
+    tool_choice: body.tool_choice || "auto",
+    tools: Array.isArray(body.tools) ? body.tools : [],
+    top_p: body.top_p ?? 1,
+    truncation: body.truncation || "disabled",
+    usage: status === "in_progress" ? null : usage,
+    user: body.user || null,
+    metadata: { ...(body.metadata || {}), meera_session_id: body.metadata?.meera_session_id || null },
+  };
+}
+
 async function handleResponsesRequest(res: ServerResponse, body: any): Promise<void> {
   pruneResponseStore();
+
   const model = body.model || "gemini-3.8-flash";
-  if (isChatGPTModel(model) || isQwenModel(model) || GEMINI_MODELS.includes(model)) {
-    // accepted
-  } else {
+  if (!(isChatGPTModel(model) || isQwenModel(model) || GEMINI_MODELS.includes(model))) {
     res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: { type: "invalid_request_error", message: `Unknown model: ${model}` } }));
-    return;
-  }
-
-  const previous = body.previous_response_id ? responseStore.get(body.previous_response_id) : undefined;
-  const messages = [...(previous?.messages || []), ...responseInputToMessages(body)];
-  if (!messages.length) {
-    res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: { type: "invalid_request_error", message: "input is required" } }));
-    return;
-  }
-
-  const chatBody: any = {
-    model,
-    messages,
-    stream: Boolean(body.stream),
-    max_tokens: body.max_output_tokens || body.max_tokens,
-    tools: responseToolsToChatTools(body.tools),
-    tool_choice: body.tool_choice,
-    parallel_tool_calls: body.parallel_tool_calls,
-  };
-  Object.keys(chatBody).forEach((key) => chatBody[key] === undefined && delete chatBody[key]);
-  const backendUrl = getBackendUrl(model);
-  const responseId = `resp_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
-  const createdAt = Math.floor(Date.now() / 1000);
-  const baseResponse = { id: responseId, object: "response", created_at: createdAt, model };
-  responseStore.set(responseId, { messages, createdAt: Date.now() });
-
-  const requestHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: body.stream ? "text/event-stream" : "application/json",
-  };
-  if (backendUrl === QWEN2API_BACKEND && QWEN_API_TOKEN) {
-    requestHeaders.Authorization = `Bearer ${QWEN_API_TOKEN}`;
-  }
-  const upstream = await fetch(`${backendUrl}/v1/chat/completions`, {
-    method: "POST",
-    headers: requestHeaders,
-    body: JSON.stringify(chatBody),
-  });
-  if (!upstream.ok) {
-    const detail = await upstream.text().catch(() => "");
-    res.writeHead(502, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: { type: "upstream_error", message: detail || `Backend returned HTTP ${upstream.status}` } }));
-    return;
-  }
-
-  if (!body.stream) {
-    const completion: any = await upstream.json();
-    const message = completion?.choices?.[0]?.message || { role: "assistant", content: "" };
-    const output = chatMessageToResponseOutput(message);
-    responseStore.set(responseId, { messages: [...messages, message], createdAt: Date.now() });
-    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     res.end(JSON.stringify({
-      ...baseResponse,
-      status: "completed",
-      output,
-      usage: completion.usage ? {
-        input_tokens: completion.usage.prompt_tokens || 0,
-        output_tokens: completion.usage.completion_tokens || 0,
-        total_tokens: completion.usage.total_tokens || 0,
-      } : null,
+      error: { type: "invalid_request_error", message: `Unknown model: ${model}` }
     }));
     return;
   }
 
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream; charset=utf-8",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-  });
-  let sequence = 0;
-  let text = "";
-  const toolCalls = new Map<number, any>();
-  writeResponseEvent(res, "response.created", ++sequence, {
-    response: { ...baseResponse, status: "in_progress", output: [], usage: null },
-  });
-  writeResponseEvent(res, "response.in_progress", ++sequence, {
-    response: { ...baseResponse, status: "in_progress", output: [], usage: null },
+  const previous = body.previous_response_id
+    ? responseStore.get(body.previous_response_id)
+    : undefined;
+  const sessionId = getOrCreateSessionId(body, previous);
+
+  const messages = [...(previous?.messages || []), ...responseInputToMessages(body)];
+
+  if (!messages.length) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      error: { type: "invalid_request_error", message: "input is required" }
+    }));
+    return;
+  }
+
+  const wantsStream = Boolean(body.stream);
+  const backendUrl = getBackendUrl(model);
+
+  // Codex is a Responses client. Our Web2API backends are mostly
+  // Chat-Completions compatible, so the gateway adapts the wire format.
+  //
+  // IMPORTANT: when Codex asks for streaming, DO NOT wait for the complete
+  // upstream response before sending the first SSE frame. Codex has a
+  // stream-idle watchdog (currently commonly 300s), and long web generations
+  // can otherwise look like a dead connection. We therefore translate the
+  // upstream Chat Completions SSE stream into Responses SSE as it arrives.
+  const chatBody: any = {
+    model,
+    messages,
+    stream: wantsStream,
+    max_tokens: body.max_output_tokens || body.max_tokens,
+    tools: responseToolsToChatTools(body.tools),
+    tool_choice: body.tool_choice,
+    parallel_tool_calls: body.parallel_tool_calls,
+    temperature: body.temperature,
+    top_p: body.top_p,
+    reasoning: body.reasoning,
+  };
+
+  Object.keys(chatBody).forEach((key) => {
+    if (chatBody[key] === undefined) delete chatBody[key];
   });
 
-  const reader = upstream.body?.getReader();
+  const responseId = `resp_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
+  const createdAt = Math.floor(Date.now() / 1000);
+  const baseResponse = {
+    id: responseId,
+    object: "response",
+    created_at: createdAt,
+    model,
+  };
+
+  const requestHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: wantsStream ? "text/event-stream" : "application/json",
+    "X-Meera-Session-ID": sessionId,
+    "X-Meera-Model": model,
+  };
+
+  if (backendUrl === QWEN2API_BACKEND && QWEN_API_TOKEN) {
+    requestHeaders.Authorization = `Bearer ${QWEN_API_TOKEN}`;
+  }
+
+  let upstream: globalThis.Response;
+  try {
+    upstream = await fetch(`${backendUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: requestHeaders,
+      body: JSON.stringify(chatBody),
+    });
+  } catch (err: any) {
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      error: {
+        type: "upstream_error",
+        message: err?.message || String(err),
+      },
+    }));
+    return;
+  }
+
+  // Never silently substitute another model when the user selected GPT.
+  // An optional fallback can be enabled explicitly with CHATGPT_ALLOW_MODEL_FALLBACK=1.
+  if (!upstream.ok && backendUrl === CHATGPT_BACKEND && process.env.CHATGPT_ALLOW_MODEL_FALLBACK === "1") {
+    console.warn(`[Router] ChatGPT backend returned HTTP ${upstream.status}; explicit Gemini fallback enabled`);
+    const fallbackBody = { ...chatBody, model: "gemini-3.8-flash" };
+    try {
+      upstream = await fetch(`${GEMINI_BACKEND}/v1/chat/completions`, {
+        method: "POST",
+        headers: requestHeaders,
+        body: JSON.stringify(fallbackBody),
+      });
+    } catch (err: any) {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: { type: "upstream_error", message: err?.message || String(err) } }));
+      return;
+    }
+  }
+
+  if (!upstream.ok) {
+    const detail = await upstream.text().catch(() => "");
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      error: {
+        type: "upstream_error",
+        message: detail || `Backend returned HTTP ${upstream.status}`,
+      },
+    }));
+    return;
+  }
+
+  // Non-streaming Responses request.
+  if (!wantsStream) {
+    let completion: any;
+    try {
+      completion = await upstream.json();
+    } catch (err: any) {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: {
+          type: "upstream_error",
+          message: `Invalid upstream JSON: ${err?.message || String(err)}`,
+        },
+      }));
+      return;
+    }
+
+    const message = completion?.choices?.[0]?.message || {
+      role: "assistant",
+      content: "",
+    };
+
+    const output = chatMessageToResponseOutput(message);
+    const stored = {
+      messages: [...messages, message],
+      createdAt: Date.now(),
+      sessionId,
+      model,
+    };
+    responseStore.set(responseId, stored);
+    persistResponse(responseId, stored);
+
+    const usage = {
+      input_tokens: completion?.usage?.prompt_tokens || 0,
+      input_tokens_details: { cached_tokens: completion?.usage?.prompt_tokens_details?.cached_tokens || 0, cache_write_tokens: completion?.usage?.prompt_tokens_details?.cache_write_tokens || 0 },
+      output_tokens: completion?.usage?.completion_tokens || 0,
+      output_tokens_details: { reasoning_tokens: completion?.usage?.completion_tokens_details?.reasoning_tokens || 0 },
+      total_tokens: completion?.usage?.total_tokens || 0,
+    };
+
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+
+    res.end(JSON.stringify({
+      ...baseResponse,
+      status: output.some((item: any) => item.type === "function_call")
+        ? "requires_action"
+        : "completed",
+      output,
+      output_text: responseOutputText(output),
+      usage,
+    }));
+    return;
+  }
+
+  // Streaming Responses adapter.
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-store",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  if (typeof res.flushHeaders === "function") res.flushHeaders();
+
+  // Codex can declare a stream idle when a web model pauses for a long
+  // reasoning/generation interval. Valid SSE comments keep the connection
+  // alive without creating fake Responses events.
+  const keepAlive = setInterval(() => {
+    if (!res.writableEnded) {
+      try { res.write(": keep-alive\n\n"); } catch {}
+    }
+  }, 15000);
+
+  let sequence = 0;
+  const output: any[] = [];
+  const textParts: string[] = [];
+  const toolCalls = new Map<number, {
+    id: string;
+    call_id: string;
+    name: string;
+    arguments: string;
+  }>();
+  let messageId: string | null = null;
+  let responseUsage: any = {
+    input_tokens: 0,
+    output_tokens: 0,
+    total_tokens: 0,
+  };
+  let sawTerminal = false;
+
+  writeResponseEvent(res, "response.created", ++sequence, {
+    response: buildCanonicalResponseFields(body, model, responseId, createdAt, "in_progress", [], null),
+  });
+  writeResponseEvent(res, "response.in_progress", ++sequence, {
+    response: buildCanonicalResponseFields(body, model, responseId, createdAt, "in_progress", [], null),
+  });
+
   const decoder = new TextDecoder();
   let buffer = "";
-  const consumeLine = (line: string) => {
-    if (!line.startsWith("data:")) return;
-    const payload = line.slice(5).trim();
-    if (!payload || payload === "[DONE]") return;
+
+  const processUpstreamEvent = (rawEvent: string) => {
+    const dataLines = rawEvent
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart());
+
+    if (!dataLines.length) return;
+    const dataText = dataLines.join("\n").trim();
+    if (!dataText || dataText === "[DONE]") {
+      // Chat Completions [DONE] is NOT the Responses terminal event.
+      // We must still synthesize response.completed below.
+      return;
+    }
+
     let chunk: any;
-    try { chunk = JSON.parse(payload); } catch { return; }
-    const delta = chunk.choices?.[0]?.delta || {};
+    try {
+      chunk = JSON.parse(dataText);
+    } catch {
+      return;
+    }
+
+    // Some compatible backends may send an already-formed Responses event.
+    // Pass it through rather than double-wrapping it.
+    if (typeof chunk?.type === "string" && chunk.type.startsWith("response.")) {
+      if (chunk.type === "response.completed") sawTerminal = true;
+      res.write(`event: ${chunk.type}\ndata: ${JSON.stringify(chunk)}\n\n`);
+      return;
+    }
+
+    const choice = chunk?.choices?.[0];
+    const delta = choice?.delta || {};
+
+    if (chunk?.usage) {
+      responseUsage = {
+        input_tokens: chunk.usage.prompt_tokens || chunk.usage.input_tokens || 0,
+        input_tokens_details: {
+          cached_tokens: chunk.usage.prompt_tokens_details?.cached_tokens || chunk.usage.input_tokens_details?.cached_tokens || 0,
+          cache_write_tokens: chunk.usage.prompt_tokens_details?.cache_write_tokens || chunk.usage.input_tokens_details?.cache_write_tokens || 0,
+        },
+        output_tokens: chunk.usage.completion_tokens || chunk.usage.output_tokens || 0,
+        output_tokens_details: { reasoning_tokens: chunk.usage.completion_tokens_details?.reasoning_tokens || chunk.usage.output_tokens_details?.reasoning_tokens || 0 },
+        total_tokens: chunk.usage.total_tokens || 0,
+      };
+    }
+
     if (typeof delta.content === "string" && delta.content) {
-      text += delta.content;
+      if (!messageId) {
+        messageId = `msg_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+        const messageItem = {
+          type: "message",
+          id: messageId,
+          role: "assistant",
+          status: "in_progress",
+          phase: "final_answer",
+          content: [],
+        };
+        output.push({
+          type: "message",
+          id: messageId,
+          role: "assistant",
+          status: "completed",
+          phase: "final_answer",
+          content: [{ type: "output_text", text: "", annotations: [] }],
+        });
+
+        writeResponseEvent(res, "response.output_item.added", ++sequence, {
+          output_index: output.length - 1,
+          item: messageItem,
+        });
+        writeResponseEvent(res, "response.content_part.added", ++sequence, {
+          item_id: messageId,
+          output_index: output.length - 1,
+          content_index: 0,
+          part: { type: "output_text", text: "", annotations: [] },
+        });
+      }
+
+      textParts.push(delta.content);
+      const outputIndex = output.findIndex((item) => item.id === messageId);
       writeResponseEvent(res, "response.output_text.delta", ++sequence, {
-        item_id: `${responseId}_msg`,
-        output_index: 0,
+        item_id: messageId,
+        output_index: outputIndex >= 0 ? outputIndex : 0,
         content_index: 0,
         delta: delta.content,
       });
     }
-    for (const call of delta.tool_calls || []) {
-      const index = call.index || 0;
-      const current = toolCalls.get(index) || {
-        id: call.id || `call_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
-        name: "",
-        arguments: "",
-      };
-      current.name += call.function?.name || "";
-      current.arguments += call.function?.arguments || "";
-      toolCalls.set(index, current);
-      writeResponseEvent(res, "response.function_call_arguments.delta", ++sequence, {
-        item_id: current.id,
-        output_index: index,
-        delta: call.function?.arguments || "",
-      });
+
+    if (Array.isArray(delta.tool_calls)) {
+      for (const tc of delta.tool_calls) {
+        const index = Number.isInteger(tc?.index) ? tc.index : toolCalls.size;
+        let call = toolCalls.get(index);
+
+        if (!call) {
+          const id = tc?.id || `call_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+          const name = tc?.function?.name || "";
+          call = {
+            id,
+            call_id: id,
+            name,
+            arguments: "",
+          };
+          toolCalls.set(index, call);
+
+          const outputIndex = output.length;
+          output.push({
+            type: "function_call",
+            id: call.id,
+            call_id: call.call_id,
+            name: call.name,
+            arguments: "",
+            status: "completed",
+          });
+
+          writeResponseEvent(res, "response.output_item.added", ++sequence, {
+            output_index: outputIndex,
+            item: {
+              type: "function_call",
+              id: call.id,
+              call_id: call.call_id,
+              name: call.name,
+              arguments: "",
+              status: "in_progress",
+            },
+          });
+        }
+
+        if (tc?.function?.name && !call.name) {
+          call.name = tc.function.name;
+          const outputItem = output.find((item) => item.id === call!.id);
+          if (outputItem) outputItem.name = call.name;
+        }
+
+        const argsDelta = tc?.function?.arguments || "";
+        if (argsDelta) {
+          call.arguments += argsDelta;
+          const outputIndex = output.findIndex((item) => item.id === call!.id);
+          const outputItem = output[outputIndex];
+          if (outputItem) outputItem.arguments = call.arguments;
+
+          writeResponseEvent(res, "response.function_call_arguments.delta", ++sequence, {
+            item_id: call.id,
+            output_index: outputIndex,
+            delta: argsDelta,
+          });
+        }
+      }
     }
   };
-  if (reader) {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() || "";
-      for (const line of lines) consumeLine(line.trim());
+
+  try {
+    if (!upstream.body) {
+      throw new Error("Upstream returned no response body for a streaming request.");
     }
+
+    for await (const chunk of upstream.body as any) {
+      buffer += decoder.decode(chunk, { stream: true });
+
+      // Upstream SSE events are separated by a blank line.
+      let separator = buffer.indexOf("\n\n");
+      while (separator >= 0) {
+        const eventText = buffer.slice(0, separator);
+        buffer = buffer.slice(separator + 2);
+        processUpstreamEvent(eventText);
+        separator = buffer.indexOf("\n\n");
+      }
+
+      // Be tolerant of CRLF-only boundaries.
+      separator = buffer.indexOf("\r\n\r\n");
+      while (separator >= 0) {
+        const eventText = buffer.slice(0, separator);
+        buffer = buffer.slice(separator + 4);
+        processUpstreamEvent(eventText);
+        separator = buffer.indexOf("\r\n\r\n");
+      }
+    }
+
+    buffer += decoder.decode();
+    if (buffer.trim()) processUpstreamEvent(buffer);
+  } catch (err: any) {
+    if (!res.writableEnded) {
+      writeResponseEvent(res, "response.failed", ++sequence, {
+        response: {
+          ...buildCanonicalResponseFields(body, model, responseId, createdAt, "failed", output, responseUsage),
+          error: {
+            code: "upstream_stream_error",
+            message: err?.message || String(err),
+          },
+        },
+      });
+    }
+    clearInterval(keepAlive);
+    try { res.end(); } catch {}
+    return;
   }
-  if (buffer) consumeLine(buffer.trim());
-  const output: any[] = [];
-  if (text) output.push({ type: "message", id: `${responseId}_msg`, role: "assistant", status: "completed", content: [{ type: "output_text", text, annotations: [] }] });
-  for (const [index, call] of toolCalls) {
-    const item = { type: "function_call", id: call.id, call_id: call.id, name: call.name, arguments: call.arguments, status: "completed" };
-    output.splice(index, 0, item);
-    writeResponseEvent(res, "response.function_call_arguments.done", ++sequence, { item_id: call.id, output_index: index, arguments: call.arguments });
-    writeResponseEvent(res, "response.output_item.done", ++sequence, { output_index: index, item });
-  }
-  const finalStatus = toolCalls.size ? "requires_action" : "completed";
-  writeResponseEvent(res, "response.completed", ++sequence, { response: { ...baseResponse, status: finalStatus, output, usage: null } });
-  res.end();
-  responseStore.set(responseId, {
-    messages: [
-      ...messages,
-      {
-        role: "assistant",
-        content: text || null,
-        ...(toolCalls.size ? {
-          tool_calls: [...toolCalls.values()].map((call) => ({
-            id: call.id,
-            type: "function",
-            function: { name: call.name, arguments: call.arguments },
-          })),
-        } : {}),
+
+  // Close any open message item.
+  if (messageId) {
+    const outputIndex = output.findIndex((item) => item.id === messageId);
+    const finalText = textParts.join("");
+    const outputItem = output[outputIndex];
+    if (outputItem) {
+      outputItem.status = "completed";
+      outputItem.phase = "final_answer";
+      outputItem.content = [{
+        type: "output_text",
+        text: finalText,
+        annotations: [],
+      }];
+    }
+
+    writeResponseEvent(res, "response.output_text.done", ++sequence, {
+      item_id: messageId,
+      output_index: outputIndex,
+      content_index: 0,
+      text: finalText,
+    });
+    writeResponseEvent(res, "response.content_part.done", ++sequence, {
+      item_id: messageId,
+      output_index: outputIndex,
+      content_index: 0,
+      part: {
+        type: "output_text",
+        text: finalText,
+        annotations: [],
       },
-    ],
+    });
+    writeResponseEvent(res, "response.output_item.done", ++sequence, {
+      output_index: outputIndex,
+      item: outputItem,
+    });
+  }
+
+  // Finish every function call item with its complete argument string.
+  for (const call of toolCalls.values()) {
+    const outputIndex = output.findIndex((item) => item.id === call.id);
+    const outputItem = output[outputIndex];
+    if (outputItem) {
+      outputItem.arguments = call.arguments || "{}";
+      outputItem.name = call.name;
+      outputItem.status = "completed";
+    }
+
+    writeResponseEvent(res, "response.function_call_arguments.done", ++sequence, {
+      item_id: call.id,
+      output_index: outputIndex,
+      arguments: call.arguments || "{}",
+    });
+    writeResponseEvent(res, "response.output_item.done", ++sequence, {
+      output_index: outputIndex,
+      item: outputItem || {
+        type: "function_call",
+        id: call.id,
+        call_id: call.call_id,
+        name: call.name,
+        arguments: call.arguments || "{}",
+        status: "completed",
+      },
+    });
+  }
+
+  // Build the assistant Chat-Completions message that represents this turn.
+  const assistantMessage: any = {
+    role: "assistant",
+    content: textParts.length ? textParts.join("") : null,
+  };
+  if (toolCalls.size) {
+    assistantMessage.tool_calls = Array.from(toolCalls.values()).map((call) => ({
+      id: call.id,
+      type: "function",
+      function: {
+        name: call.name,
+        arguments: call.arguments || "{}",
+      },
+    }));
+  }
+
+  const stored = {
+    messages: [...messages, assistantMessage],
     createdAt: Date.now(),
-  });
+    sessionId,
+    model,
+  };
+  responseStore.set(responseId, stored);
+  persistResponse(responseId, stored);
+
+  const finalStatus = toolCalls.size ? "requires_action" : "completed";
+
+  if (!sawTerminal) {
+    // The gateway itself owns the Responses contract, so even if a Web2API
+    // upstream ends with [DONE] or a clean EOF, Codex still receives the
+    // terminal response.completed event it requires.
+    writeResponseEvent(res, "response.completed", ++sequence, {
+      response: {
+        ...buildCanonicalResponseFields(body, model, responseId, createdAt, finalStatus, output, responseUsage),
+        output_text: responseOutputText(output),
+      },
+    });
+  }
+
+  clearInterval(keepAlive);
+  res.end();
 }
+
 
 // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -965,6 +1503,7 @@ async function parseJsonBody(req: IncomingMessage): Promise<any> {
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 async function bootstrap(): Promise<void> {
+  loadResponseJournal();
   console.log(`[Router] Fetching Qwen Cloud models from qwen2api (${QWEN2API_BACKEND})...`);
   await refreshQwenModelsIfNeeded();
   console.log(`[Router] Fetching ChatGPT models from reverse-chatgpt (${CHATGPT_BACKEND})...`);

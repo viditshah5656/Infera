@@ -98,6 +98,47 @@ class ChatGPT(Session):
     def decode_stream(self, response: Response):
         buffer = ""
 
+        def decode_line(line):
+            values = []
+            line = line.rstrip("\r")
+            if not line.startswith("data:"):
+                return values
+
+            data_str = line[len("data:"):].strip()
+            if data_str == "[DONE]":
+                return values
+
+            try:
+                data = self.safe_parse(data_str)
+            except json.JSONDecodeError:
+                return values
+
+            # Skip known metadata
+            if (
+                not isinstance(data, dict)
+                or "finish_details" in data
+                or data.get("type") == "message_stream_complete"
+            ):
+                return values
+
+            v = data.get("v")
+            if v is None:
+                return values
+
+            if isinstance(v, list):
+                for patch in v:
+                    if isinstance(patch, dict) and patch.get("o") == "append":
+                        val = patch.get("v")
+                        if not isinstance(val, dict):
+                            cleaned = self.clean_output(val)
+                            if cleaned:
+                                values.append(cleaned)
+            elif isinstance(v, str):
+                cleaned = self.clean_output(v)
+                if cleaned:
+                    values.append(cleaned)
+            return values
+
         for chunk in response.iter_content(chunk_size=1024):
             if not chunk:
                 continue
@@ -107,40 +148,13 @@ class ChatGPT(Session):
             buffer = lines.pop()
 
             for line in lines:
-                if line.startswith("data:"):
-                    data_str = line[len("data:"):].strip()
+                for value in decode_line(line):
+                    yield value
 
-                    if data_str == "[DONE]":
-                        return
-
-                    try:
-                        data = self.safe_parse(data_str)
-                    except json.JSONDecodeError:
-                        continue
-
-                    # Skip known metadata
-                    if (
-                        not isinstance(data, dict)
-                        or "finish_details" in data
-                        or data.get("type") == "message_stream_complete"
-                    ):
-                        continue
-
-                    v = data.get("v")
-                    if v is None:
-                        continue
-
-                    if isinstance(v, list):
-                        for patch in v:
-                            if isinstance(patch, dict) and patch.get("o") == "append":
-                                val = patch.get("v")
-                                if not isinstance(val, dict):
-                                    yield self.clean_output(val)
-                               
-
-                    elif isinstance(v, str):
-                        #print("finish_details v", "finish_details" in v)
-                        yield self.clean_output(v)
+        # Some upstream proxies close immediately after the final SSE payload,
+        # without writing the conventional trailing newline.
+        for value in decode_line(buffer):
+            yield value
 
 
     
@@ -150,6 +164,9 @@ class ChatGPT(Session):
         headers = self.get_headers()
         
         response = self.session.post('https://chatgpt.com/backend-anon/conversation', headers=headers, json=json_data,stream=True,impersonate="chrome")
+        if response.status_code != 200:
+            detail = response.text[:500] if response.text else "empty upstream response"
+            raise RuntimeError(f"ChatGPT web backend returned HTTP {response.status_code}: {detail}")
         
         for chunk in self.decode_stream(response):
             # print(chunk, end="", flush=True)
