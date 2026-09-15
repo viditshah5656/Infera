@@ -10,6 +10,7 @@ need python3
 need node
 need npm
 need curl
+need unzip
 
 mkdir -p "$ROOT"
 echo "Downloading latest Infera..."
@@ -34,14 +35,49 @@ cat > "$ROOT/start-infera.sh" <<'LAUNCHER'
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PY="$ROOT/.venv/bin/python"
+LOCAL="http://127.0.0.1:8081"
+
+if curl -fsS --max-time 2 "$LOCAL/health" >/dev/null 2>&1; then
+  if command -v xdg-open >/dev/null 2>&1; then xdg-open "$LOCAL/chat" >/dev/null 2>&1 || true; elif command -v open >/dev/null 2>&1; then open "$LOCAL/chat" || true; fi
+  exit 0
+fi
+
 "$PY" "$ROOT/gemini_web2api.py" --port 8082 >"$ROOT/gemini.log" 2>&1 &
 "$PY" -m uvicorn app:app --app-dir "$ROOT/reverse-chatgpt" --host 127.0.0.1 --port 5000 >"$ROOT/chatgpt.log" 2>&1 &
 (cd "$ROOT/qwen2api" && npm start) >"$ROOT/qwen.log" 2>&1 &
 (cd "$ROOT" && npm run router) >"$ROOT/router.log" 2>&1 &
-sleep 4
-if command -v xdg-open >/dev/null 2>&1; then xdg-open 'https://viditshah5656.github.io/Infera/' >/dev/null 2>&1 || true; elif command -v open >/dev/null 2>&1; then open 'https://viditshah5656.github.io/Infera/' || true; fi
-echo "Infera is running locally at http://127.0.0.1:8081"
-wait
+
+for _ in $(seq 1 30); do
+  sleep 0.5
+  if curl -fsS --max-time 2 "$LOCAL/health" >/dev/null 2>&1; then
+    if command -v xdg-open >/dev/null 2>&1; then xdg-open "$LOCAL/chat" >/dev/null 2>&1 || true; elif command -v open >/dev/null 2>&1; then open "$LOCAL/chat" || true; fi
+    exit 0
+  fi
+done
+
+echo "Infera could not start. Check logs in $ROOT/*.log" >&2
+exit 1
 LAUNCHER
 chmod +x "$ROOT/start-infera.sh"
+
+# Linux desktop browsers can invoke infera:// after installation.
+if command -v xdg-mime >/dev/null 2>&1; then
+  DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  mkdir -p "$DESKTOP_DIR"
+  cat > "$DESKTOP_DIR/infera.desktop" <<DESKTOP
+[Desktop Entry]
+Name=Infera Local Launcher
+Type=Application
+NoDisplay=true
+Terminal=false
+Exec=$ROOT/start-infera.sh %u
+MimeType=x-scheme-handler/infera;
+DESKTOP
+  xdg-mime default infera.desktop x-scheme-handler/infera >/dev/null 2>&1 || true
+fi
+
+rm -rf "$TMP"
+echo "Infera installed at $ROOT"
+echo "Launch: $ROOT/start-infera.sh"
+echo "Gateway: http://127.0.0.1:8081"
 "$ROOT/start-infera.sh"
