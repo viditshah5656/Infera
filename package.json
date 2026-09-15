@@ -1,21 +1,19 @@
 {
-  "name": "gemini-gpt-qwen-unified-api",
-  "version": "1.0.0",
-  "description": "Unified OpenAI-compatible API bridge for Gemini, ChatGPT, and Qwen models",
+  "name": "infera-unified-ai-gateway",
+  "version": "1.1.0",
+  "description": "Infera — local-first unified AI gateway with a futuristic browser chat workspace and OpenAI-compatible APIs",
   "type": "module",
   "scripts": {
     "router": "tsx unified-api-router.ts",
-    "start": "start-all-services.bat",
-    "start:linux": "bash start-all-services.sh",
     "gemini": "python gemini_web2api.py --port 8082",
     "qwen": "node qwen2api/index.js",
     "chatgpt": "python -m uvicorn app:app --app-dir reverse-chatgpt --host 127.0.0.1 --port 5000",
     "glm": "cd GLM2API && npx tsx ./scripts/zai-openai-compatible.ts",
     "all": "concurrently \"npm run gemini\" \"npm run qwen\" \"npm run chatgpt\" \"npm run router\""
   },
-  "keywords": ["gemini", "glm", "openai-compatible", "api", "bridge"],
-  "author": "",
-  "license": "AGPL-3.0-only",
+  "keywords": ["infera", "ai", "llm", "gateway", "gemini", "qwen", "chatgpt", "openai-compatible", "local-ai", "sse", "streaming"],
+  "author": "Vidit Shah",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^24.10.1",
     "concurrently": "^9.2.1",
