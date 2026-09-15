@@ -3,687 +3,201 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Live Web2API AI Chat — Real Token Streaming</title>
+  <meta name="theme-color" content="#08111f">
+  <meta name="description" content="Universal Web2API gateway — chat with Gemini, Qwen and ChatGPT-compatible backends, or connect any OpenAI-compatible app.">
+  <title>Web2API Control Surface</title>
   <style>
     :root {
-      --bg: #0d1117;
-      --sidebar: #161b22;
-      --card: #21262d;
-      --border: #30363d;
-      --text: #f0f6fc;
-      --text-muted: #8b949e;
-      --accent: #58a6ff;
-      --accent-hover: #79c0ff;
-      --green: #3fb950;
-      --amber: #d29922;
-      --red: #f85149;
-      --code-bg: #11151c;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --bg-0:#050812; --bg-1:#08111f; --panel:rgba(11,18,32,.64); --panel-2:rgba(16,26,45,.72);
+      --line:rgba(255,255,255,.09); --line-strong:rgba(125,211,252,.28); --text:#eef6ff; --muted:#8ea2ba;
+      --accent:#7dd3fc; --accent-2:#a78bfa; --good:#86efac; --warn:#fde68a; --bad:#fda4af;
+      --shadow:0 30px 100px rgba(0,0,0,.38); --radius:24px;
+      color-scheme:dark; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      display: flex;
-      height: 100vh;
-      overflow: hidden;
-    }
-    /* Layout */
-    .sidebar {
-      width: 320px;
-      background: var(--sidebar);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-    }
-    .main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      position: relative;
-    }
-    /* Header */
-    .header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--sidebar);
-    }
-    .header h1 {
-      font-size: 1.1rem;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 500;
-      background: rgba(63, 185, 80, 0.15);
-      color: var(--green);
-      border: 1px solid rgba(63, 185, 80, 0.3);
-    }
-    .status-badge.streaming {
-      background: rgba(88, 166, 255, 0.15);
-      color: var(--accent);
-      border-color: rgba(88, 166, 255, 0.3);
-    }
-    .status-badge.error {
-      background: rgba(248, 81, 73, 0.15);
-      color: var(--red);
-      border-color: rgba(248, 81, 73, 0.3);
-    }
-    .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: currentColor;
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.8); }
-    }
-    /* Controls in sidebar */
-    .sidebar-section {
-      padding: 16px;
-      border-bottom: 1px solid var(--border);
-    }
-    .sidebar-title {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-      font-weight: 700;
-    }
-    label { display: block; font-size: 0.85rem; margin-bottom: 6px; color: var(--text-muted); }
-    select, input {
-      width: 100%;
-      padding: 8px 12px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--card);
-      color: var(--text);
-      font-size: 0.88rem;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    select:focus, input:focus { border-color: var(--accent); }
-    /* Live telemetry */
-    .telemetry-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-    .telemetry-card {
-      background: var(--card);
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-    }
-    .telemetry-val {
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: var(--accent);
-      font-family: monospace;
-    }
-    .telemetry-lbl {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-top: 2px;
-    }
-    /* Event Log Stream */
-    .event-log-container {
-      flex: 1;
-      padding: 12px;
-      overflow-y: auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.75rem;
-      background: #090d13;
-    }
-    .event-line {
-      padding: 3px 0;
-      color: var(--text-muted);
-      white-space: pre-wrap;
-      word-break: break-all;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
-    }
-    .event-line .time { color: #6e7681; }
-    .event-line.ev-token { color: #7ee787; }
-    .event-line.ev-phase { color: #d2a8ff; font-weight: 600; }
-    .event-line.ev-error { color: var(--red); font-weight: 600; }
-    /* Chat stream */
-    .chat-container {
-      flex: 1;
-      overflow-y: auto;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .message {
-      display: flex;
-      gap: 14px;
-      max-width: 900px;
-      margin: 0 auto;
-      width: 100%;
-    }
-    .avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.85rem;
-      font-weight: bold;
-      flex-shrink: 0;
-    }
-    .avatar.user { background: #1f6feb; color: white; }
-    .avatar.assistant { background: #238636; color: white; }
-    .content-box {
-      flex: 1;
-      line-height: 1.6;
-      font-size: 0.95rem;
-      overflow-wrap: break-word;
-    }
-    .content-box pre {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 12px;
-      overflow-x: auto;
-      margin: 10px 0;
-      position: relative;
-    }
-    .content-box code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.88rem;
-    }
-    .copy-btn {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      border-radius: 4px;
-      padding: 3px 8px;
-      font-size: 0.72rem;
-      cursor: pointer;
-    }
-    .copy-btn:hover { color: var(--text); background: var(--border); }
-    /* Live stream cursor */
-    .streaming-cursor {
-      display: inline-block;
-      width: 8px;
-      height: 16px;
-      background: var(--accent);
-      vertical-align: middle;
-      margin-left: 2px;
-      animation: blink 0.9s infinite;
-    }
-    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
-    /* Input area */
-    .input-area {
-      padding: 16px 24px;
-      background: var(--sidebar);
-      border-top: 1px solid var(--border);
-    }
-    .input-wrapper {
-      max-width: 900px;
-      margin: 0 auto;
-      display: flex;
-      gap: 10px;
-      align-items: flex-end;
-    }
-    textarea {
-      flex: 1;
-      padding: 12px 14px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-family: inherit;
-      font-size: 0.95rem;
-      resize: none;
-      min-height: 50px;
-      max-height: 200px;
-      outline: none;
-      line-height: 1.5;
-    }
-    textarea:focus { border-color: var(--accent); }
-    .send-btn {
-      padding: 12px 20px;
-      background: var(--accent);
-      color: #0d1117;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.15s;
-    }
-    .send-btn:hover:not(:disabled) { background: var(--accent-hover); }
-    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-clear {
-      padding: 6px 12px;
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.8rem;
-    }
-    .btn-clear:hover { background: var(--card); color: var(--text); }
+    *{box-sizing:border-box} html,body{margin:0;min-height:100%;background:var(--bg-0);color:var(--text)} body{overflow-x:hidden}
+    body:before,body:after{content:"";position:fixed;inset:-20%;pointer-events:none;z-index:-5;background:
+      radial-gradient(circle at 18% 12%,rgba(14,165,233,.16),transparent 26%),
+      radial-gradient(circle at 84% 18%,rgba(139,92,246,.14),transparent 25%),
+      radial-gradient(circle at 50% 100%,rgba(34,197,94,.08),transparent 28%);filter:blur(18px)}
+    body:after{opacity:.55;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:44px 44px;filter:none}
+    button,input,textarea,select{font:inherit} button{cursor:pointer}
+    .shell{width:min(1480px,calc(100% - 28px));margin:16px auto 28px}
+    .topbar{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid var(--line);background:rgba(7,13,25,.72);backdrop-filter:blur(24px);box-shadow:var(--shadow);border-radius:20px;position:sticky;top:12px;z-index:40}
+    .brand{display:flex;align-items:center;gap:12px}.brand-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:linear-gradient(135deg,rgba(125,211,252,.18),rgba(167,139,250,.16));border:1px solid var(--line-strong);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+    .brand h1{font-size:15px;margin:0;letter-spacing:.02em}.brand p{font-size:11px;color:var(--muted);margin:2px 0 0}
+    .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pill{border:1px solid var(--line);background:rgba(255,255,255,.035);color:var(--muted);border-radius:999px;padding:8px 12px;font-size:12px}.pill.good{color:var(--good);border-color:rgba(134,239,172,.22)}
+    .modebar{display:flex;gap:6px;margin:18px 0 12px;padding:5px;width:max-content;border:1px solid var(--line);background:rgba(8,15,28,.7);backdrop-filter:blur(18px);border-radius:999px}.mode-btn{border:1px solid transparent;background:transparent;color:var(--muted);padding:10px 16px;border-radius:999px;font-weight:700;font-size:12px}.mode-btn.active{color:var(--text);background:linear-gradient(135deg,rgba(125,211,252,.13),rgba(167,139,250,.12));border-color:var(--line-strong);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+    .view{display:none}.view.active{display:block}
+    .chat-grid{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px}.api-grid{display:grid;grid-template-columns:370px minmax(0,1fr);gap:16px}
+    .glass{border:1px solid var(--line);background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.025));backdrop-filter:blur(24px);box-shadow:var(--shadow);border-radius:var(--radius);overflow:hidden}
+    .panel-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.panel-title{font-weight:800;font-size:13px;letter-spacing:.03em}.panel-sub{font-size:11px;color:var(--muted)}
+    .panel-body{padding:16px 18px}.stack{display:grid;gap:14px}.field{display:grid;gap:7px}.field label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}.input,.select,.textarea{width:100%;border:1px solid var(--line);border-radius:14px;background:rgba(3,8,18,.56);color:var(--text);outline:none;padding:11px 12px;transition:.2s border-color,.2s box-shadow}.textarea{min-height:120px;resize:vertical}.input:focus,.select:focus,.textarea:focus{border-color:rgba(125,211,252,.4);box-shadow:0 0 0 3px rgba(125,211,252,.08)}
+    .select{appearance:auto}.btn{border:1px solid var(--line);background:rgba(255,255,255,.045);color:var(--text);border-radius:13px;padding:10px 13px;font-weight:750;font-size:12px;transition:.2s transform,.2s background,.2s border-color}.btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.075);border-color:var(--line-strong)}.btn.primary{background:linear-gradient(135deg,rgba(14,165,233,.26),rgba(124,58,237,.2));border-color:rgba(125,211,252,.3)}.btn.danger{color:var(--bad)}
+    .chat-main{min-height:760px;display:flex;flex-direction:column}.chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}.model-live{display:flex;align-items:center;gap:10px}.live-dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 18px rgba(134,239,172,.7);animation:pulse 1.7s infinite}.live-dot.busy{background:var(--accent);box-shadow:0 0 18px rgba(125,211,252,.7)}@keyframes pulse{50%{transform:scale(.72);opacity:.55}}
+    .messages{flex:1;padding:22px;overflow:auto;display:flex;flex-direction:column;gap:18px;scroll-behavior:smooth}.empty{margin:auto;max-width:650px;text-align:center;color:var(--muted)}.empty h2{margin:0 0 8px;color:var(--text);font-size:28px}.empty p{line-height:1.7}.suggestions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:18px}.suggestions button{border:1px solid var(--line);background:rgba(255,255,255,.035);color:var(--muted);border-radius:999px;padding:9px 11px;font-size:11px}
+    .msg{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;max-width:940px;width:100%;margin:0 auto}.avatar{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;font-size:13px;font-weight:900;border:1px solid var(--line);background:rgba(255,255,255,.05)}.msg.user .avatar{background:rgba(125,211,252,.12)}.msg.assistant .avatar{background:rgba(167,139,250,.12)}.bubble{padding:13px 15px;border:1px solid var(--line);border-radius:18px;background:rgba(8,15,29,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.03);line-height:1.65;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}.msg.user .bubble{background:linear-gradient(135deg,rgba(125,211,252,.08),rgba(8,15,29,.55))}.meta{display:flex;gap:8px;margin:7px 2px 0;color:var(--muted);font-size:10px}.cursor{display:inline-block;width:7px;height:15px;background:var(--accent);vertical-align:-2px;margin-left:4px;animation:blink .8s infinite}@keyframes blink{50%{opacity:0}}
+    .composer{padding:14px 18px;border-top:1px solid var(--line);background:rgba(3,8,17,.4)}.composer-row{display:flex;gap:9px;align-items:flex-end}.composer textarea{min-height:54px;max-height:180px;flex:1}.composer-foot{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:10px;margin-top:7px}.key{padding:2px 5px;border:1px solid var(--line);border-radius:5px;background:rgba(255,255,255,.04)}
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.stat{padding:12px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.027)}.stat strong{display:block;font-size:17px}.stat span{display:block;color:var(--muted);font-size:10px;margin-top:4px;text-transform:uppercase;letter-spacing:.08em}.backend-list{display:grid;gap:8px}.backend{display:flex;justify-content:space-between;gap:10px;padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}.backend b{font-size:11px}.backend small{color:var(--muted)}
+    .api-intro{padding:22px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,rgba(125,211,252,.06),rgba(167,139,250,.035))}.api-intro h2{margin:0 0 7px;font-size:25px}.api-intro p{margin:0;color:var(--muted);line-height:1.7;font-size:13px}.codebox{border:1px solid var(--line);border-radius:16px;background:#02060e;overflow:hidden}.codehead{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--line);font-size:10px;color:var(--muted)}.code{padding:13px;font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;color:#dce9f8;min-height:180px;max-height:340px;overflow:auto}.api-tools{display:flex;gap:8px;flex-wrap:wrap}.endpoint{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent);background:rgba(125,211,252,.06);padding:8px 10px;border-radius:10px;border:1px solid rgba(125,211,252,.16)}.check{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px}.response{min-height:240px}.result-ok{color:var(--good)}.result-bad{color:var(--bad)}
+    .footer{display:flex;justify-content:space-between;align-items:center;gap:16px;color:var(--muted);font-size:10px;padding:14px 2px}.links{display:flex;gap:12px}.links a{color:var(--muted);text-decoration:none}.links a:hover{color:var(--text)}
+    .toast{position:fixed;bottom:18px;right:18px;z-index:100;padding:11px 13px;border:1px solid var(--line);border-radius:13px;background:rgba(4,9,18,.88);backdrop-filter:blur(18px);box-shadow:var(--shadow);font-size:12px;transform:translateY(20px);opacity:0;pointer-events:none;transition:.25s}.toast.show{transform:none;opacity:1}
+    @media(max-width:1080px){.chat-grid,.api-grid{grid-template-columns:1fr}.chat-main{min-height:680px}.sidebar{order:2}.api-sidebar{order:2}}
+    @media(max-width:680px){.shell{width:min(100% - 14px,1480px);margin-top:7px}.topbar{position:static}.modebar{width:100%}.mode-btn{flex:1}.messages{padding:14px}.msg{grid-template-columns:30px minmax(0,1fr)}.avatar{width:30px;height:30px}.bubble{font-size:13px}.composer-row{flex-direction:column}.composer-row .btn{width:100%}.top-actions .pill:nth-child(2){display:none}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
   </style>
 </head>
 <body>
-
-  <!-- Left: Controls & Telemetry & Event Stream -->
-  <aside class="sidebar">
-    <div class="header">
-      <h1>⚡ Live Web2API</h1>
-      <button class="btn-clear" onclick="clearChat()">Clear</button>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">⚡</div>
+      <div><h1>Universal Web2API</h1><p>One interface for direct chat + OpenAI-compatible integrations</p></div>
     </div>
+    <div class="top-actions"><span class="pill good" id="gatewayState">● Gateway detected</span><span class="pill" id="modelCount">Discovering models…</span></div>
+  </header>
 
-    <!-- Model Selector -->
-    <div class="sidebar-section">
-      <div class="sidebar-title">Model Configuration</div>
-      <label for="modelSelect">Select Model</label>
-      <select id="modelSelect"><option value="gemini-3.8-flash">Loading cloud models...</option></select>
-    </div>
+  <div class="modebar" role="tablist" aria-label="Application modes">
+    <button class="mode-btn active" id="chatMode" role="tab" aria-selected="true">💬 Direct Chat</button>
+    <button class="mode-btn" id="apiMode" role="tab" aria-selected="false">🔌 OpenAI API Studio</button>
+  </div>
 
-    <!-- Live Telemetry -->
-    <div class="sidebar-section">
-      <div class="sidebar-title">Real-Time Telemetry</div>
-      <div class="telemetry-grid">
-        <div class="telemetry-card">
-          <div class="telemetry-val" id="valTps">0.0</div>
-          <div class="telemetry-lbl">Tokens / Sec</div>
+  <section class="view active" id="chatView">
+    <div class="chat-grid">
+      <aside class="glass sidebar">
+        <div class="panel-head"><div><div class="panel-title">CONTROL DECK</div><div class="panel-sub">routing + telemetry</div></div><button class="btn" id="refreshModels">Refresh</button></div>
+        <div class="panel-body stack">
+          <div class="field"><label for="modelSelect">Model</label><select class="select" id="modelSelect"><option>Loading…</option></select></div>
+          <div class="field"><label for="systemPrompt">System prompt</label><textarea class="textarea" id="systemPrompt" placeholder="Optional system instruction…"></textarea></div>
+          <div class="stat-grid">
+            <div class="stat"><strong id="statTps">—</strong><span>Tokens / sec</span></div>
+            <div class="stat"><strong id="statTokens">0</strong><span>Output estimate</span></div>
+            <div class="stat"><strong id="statFirst">—</strong><span>First token</span></div>
+            <div class="stat"><strong id="statElapsed">0.0s</strong><span>Elapsed</span></div>
+          </div>
+          <div>
+            <div class="panel-sub" style="margin-bottom:8px">BACKENDS</div>
+            <div class="backend-list">
+              <div class="backend"><div><b>⚡ Gemini</b><br><small>gemini-web2api</small></div><b class="result-ok">READY</b></div>
+              <div class="backend"><div><b>🐉 Qwen</b><br><small>qwen2api</small></div><b class="result-ok">READY</b></div>
+              <div class="backend"><div><b>🤖 ChatGPT</b><br><small>reverse-chatgpt</small></div><b id="chatgptSideState">CHECK</b></div>
+            </div>
+          </div>
+          <div class="field"><label for="temperature">Temperature <span id="tempVal">0.7</span></label><input id="temperature" type="range" min="0" max="1.5" step="0.1" value="0.7"></div>
+          <div style="display:flex;gap:8px"><button class="btn" id="exportChat" style="flex:1">Export</button><button class="btn danger" id="clearChat" style="flex:1">Clear</button></div>
         </div>
-        <div class="telemetry-card">
-          <div class="telemetry-val" id="valTokens">0</div>
-          <div class="telemetry-lbl">Total Tokens</div>
+      </aside>
+
+      <main class="glass chat-main">
+        <div class="chat-head">
+          <div class="model-live"><span class="live-dot" id="liveDot"></span><div><div class="panel-title" id="modelLabel">Model</div><div class="panel-sub" id="routeLabel">Routing through unified gateway</div></div></div>
+          <span class="pill" id="statusBadge">READY</span>
         </div>
-        <div class="telemetry-card">
-          <div class="telemetry-val" id="valTtft">0 ms</div>
-          <div class="telemetry-lbl">First Token (TTFT)</div>
+        <div class="messages" id="messages">
+          <div class="empty" id="welcome">
+            <div style="font-size:40px">🧠</div>
+            <h2>Talk directly to your Web2API stack.</h2>
+            <p>Choose a model, send a message, and watch the real streaming response arrive. The same gateway can power external OpenAI-compatible apps.</p>
+            <div class="suggestions"><button data-prompt="Explain what this gateway can do.">What can this gateway do?</button><button data-prompt="Give me a compact system architecture for this project.">Show the architecture</button><button data-prompt="Write a curl request for /v1/chat/completions.">Show an API example</button></div>
+          </div>
         </div>
-        <div class="telemetry-card">
-          <div class="telemetry-val" id="valElapsed">0.0 s</div>
-          <div class="telemetry-lbl">Elapsed Time</div>
+        <div class="composer">
+          <div class="composer-row"><textarea class="textarea" id="promptInput" placeholder="Message a selected model…"></textarea><button class="btn primary" id="sendBtn">Send ↗</button></div>
+          <div class="composer-foot"><span><span class="key">Enter</span> send · <span class="key">Shift+Enter</span> newline</span><span id="streamNote">Streaming enabled</span></div>
         </div>
-      </div>
+      </main>
     </div>
+  </section>
 
-    <!-- Live SSE Events Stream -->
-    <div class="sidebar-section" style="padding-bottom: 8px;">
-      <div class="sidebar-title">Live SSE Event Stream</div>
-    </div>
-    <div class="event-log-container" id="eventLogs">
-      <div class="event-line"><span class="time">[00:00:00]</span> SSE Event monitor initialized. Ready.</div>
-    </div>
-  </aside>
-
-  <!-- Right: Chat interface -->
-  <main class="main">
-    <div class="header">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <span id="currentModelLabel" style="font-weight: 600; font-size: 0.95rem;">gemini-3.8-flash</span>
-        <span class="status-badge" id="statusBadge"><span class="dot"></span> Ready</span>
-      </div>
-      <div style="color: var(--text-muted); font-size: 0.8rem;">
-        Zero API Keys • Pure Web2API Streaming
-      </div>
-    </div>
-
-    <!-- Chat Messages -->
-    <div class="chat-container" id="chatContainer">
-      <div class="message">
-        <div class="avatar assistant">AI</div>
-        <div class="content-box">
-          <p><strong>Welcome to Web2API.</strong> Real token-by-token streaming is active.</p>
-          <p style="margin-top:6px; color:var(--text-muted);">
-            Pick a model on the left, type a prompt, and watch each token render live with real-time speed metrics and raw SSE event monitoring.
-          </p>
+  <section class="view" id="apiView">
+    <div class="api-grid">
+      <aside class="glass api-sidebar">
+        <div class="panel-head"><div><div class="panel-title">API WORKBENCH</div><div class="panel-sub">connect any OpenAI-compatible client</div></div><span class="pill good">LOCAL</span></div>
+        <div class="panel-body stack">
+          <div class="field"><label for="apiBase">Base URL</label><input class="input" id="apiBase" value="http://127.0.0.1:8081/v1"></div>
+          <div class="endpoint">POST /chat/completions</div>
+          <div class="field"><label for="apiModel">Model</label><select class="select" id="apiModel"><option>Loading…</option></select></div>
+          <div class="field"><label for="apiPrompt">Test prompt</label><textarea class="textarea" id="apiPrompt">Give me three practical reasons to use an OpenAI-compatible gateway.</textarea></div>
+          <div style="display:flex;gap:8px"><button class="btn primary" id="testApi" style="flex:1">▶ Test endpoint</button><button class="btn" id="healthApi">Health</button></div>
+          <div class="check"><span class="live-dot" style="width:7px;height:7px"></span> CORS enabled by gateway</div>
+          <div class="check">✓ Streaming: SSE</div>
+          <div class="check">✓ Models: GET /v1/models</div>
+          <div class="check">✓ Auth: no API key required by router</div>
         </div>
-      </div>
+      </aside>
+
+      <main class="glass">
+        <div class="api-intro"><h2>Plug any app into your models.</h2><p>This mode is an interactive API control surface. Copy the exact base URL and request patterns, test them from the browser, and connect clients that speak the OpenAI Chat Completions protocol.</p></div>
+        <div class="panel-body stack">
+          <div class="codebox"><div class="codehead"><span>curl</span><button class="btn" data-copy="curlCode">Copy</button></div><pre class="code" id="curlCode"></pre></div>
+          <div class="codebox"><div class="codehead"><span>Python · OpenAI SDK</span><button class="btn" data-copy="pythonCode">Copy</button></div><pre class="code" id="pythonCode"></pre></div>
+          <div class="codebox"><div class="codehead"><span>JavaScript · fetch</span><button class="btn" data-copy="jsCode">Copy</button></div><pre class="code" id="jsCode"></pre></div>
+          <div class="api-tools"><button class="btn" id="copyEndpoint">Copy base URL</button><button class="btn" id="openModels">Open /v1/models</button><button class="btn" id="downloadConfig">Export client config</button></div>
+          <div class="codebox response"><div class="codehead"><span>LIVE TEST RESULT</span><span id="apiResultStatus">Idle</span></div><pre class="code" id="apiResult">Run the endpoint test to see the response here.</pre></div>
+        </div>
+      </main>
     </div>
+  </section>
 
-    <!-- Input -->
-    <div class="input-area">
-      <div class="input-wrapper">
-        <textarea id="promptInput" placeholder="Ask a question or request code... (Shift+Enter for newline, Enter to send)" rows="1"></textarea>
-        <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
-      </div>
-    </div>
-  </main>
+  <footer class="footer"><span>Web2API Control Surface · direct chat + OpenAI-compatible API</span><div class="links"><a href="/health" target="_blank">Health</a><a href="/v1/models" target="_blank">Models</a><a href="/share" target="_blank">Share scripts</a></div></footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const state = { models: [], conversation: [], streaming: false, startedAt: 0, firstTokenAt: 0, outputChars: 0 };
 
-  <script>
-    const chatContainer = document.getElementById('chatContainer');
-    const promptInput = document.getElementById('promptInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const modelSelect = document.getElementById('modelSelect');
-    const statusBadge = document.getElementById('statusBadge');
-    const eventLogs = document.getElementById('eventLogs');
-    const valTps = document.getElementById('valTps');
-    const valTokens = document.getElementById('valTokens');
-    const valTtft = document.getElementById('valTtft');
-    const valElapsed = document.getElementById('valElapsed');
-    const currentModelLabel = document.getElementById('currentModelLabel');
+  function toast(text){ const el=$('toast'); el.textContent=text; el.classList.add('show'); clearTimeout(window.__toast); window.__toast=setTimeout(()=>el.classList.remove('show'),2200); }
+  function saveState(){ localStorage.setItem('web2api-conversation', JSON.stringify(state.conversation)); localStorage.setItem('web2api-model', $('modelSelect').value || ''); }
+  function restoreState(){ try{ const c=JSON.parse(localStorage.getItem('web2api-conversation')||'[]'); if(Array.isArray(c)) state.conversation=c; }catch{} }
+  function scrollBottom(){ const box=$('messages'); box.scrollTop=box.scrollHeight; }
+  function addMessage(role, text, streaming=false){
+    $('welcome')?.remove(); const wrap=document.createElement('div'); wrap.className='msg '+role; const avatar=document.createElement('div'); avatar.className='avatar'; avatar.textContent=role==='user'?'YOU':'AI'; const body=document.createElement('div'); const bubble=document.createElement('div'); bubble.className='bubble'; bubble.textContent=text; if(streaming){ const cur=document.createElement('span'); cur.className='cursor'; bubble.appendChild(cur); } const meta=document.createElement('div'); meta.className='meta'; meta.textContent=role==='user'?'local request':'streaming response'; body.append(bubble,meta); wrap.append(avatar,body); $('messages').appendChild(wrap); scrollBottom(); return {wrap,bubble,meta};
+  }
+  function setStatus(text,busy=false){ $('statusBadge').textContent=text; $('liveDot').classList.toggle('busy',busy); }
+  function estimateTokens(text){ return Math.ceil((text||'').length/4); }
+  function updateTelemetry(elapsed){ const tokens=estimateTokens(state.outputChars); $('statTokens').textContent=tokens; $('statElapsed').textContent=elapsed.toFixed(1)+'s'; if(state.firstTokenAt){ $('statFirst').textContent=Math.round(state.firstTokenAt-state.startedAt)+'ms'; } if(elapsed>0) $('statTps').textContent=(tokens/elapsed).toFixed(1); }
+  function modelOwner(id){ const x=String(id).toLowerCase(); if(x.startsWith('qwen')||x.startsWith('qwq')) return 'Qwen'; if(x.startsWith('gpt-')||x.startsWith('o1')||x.startsWith('o3')||x.startsWith('o4')||x.startsWith('chatgpt')) return 'ChatGPT'; return 'Gemini'; }
 
-    let conversation = [];
-    let isStreaming = false;
+  async function loadModels(){
+    try{
+      const r=await fetch('/v1/models',{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); const data=await r.json(); state.models=(data.data||[]).map(m=>m.id).filter(Boolean);
+      const selects=[$('modelSelect'),$('apiModel')]; selects.forEach(sel=>{ const old=sel.value || localStorage.getItem('web2api-model') || ''; sel.innerHTML=''; state.models.forEach(id=>{ const o=document.createElement('option'); o.value=id; o.textContent='['+modelOwner(id)+'] '+id; sel.appendChild(o); }); if(state.models.includes(old)) sel.value=old; });
+      $('modelCount').textContent=state.models.length+' models discovered'; $('modelLabel').textContent=$('modelSelect').value || 'Default model'; $('routeLabel').textContent='Unified router → '+modelOwner($('modelSelect').value); $('chatgptSideState').textContent=state.models.some(x=>modelOwner(x)==='ChatGPT')?'READY':'FALLBACK';
+      $('apiModel').value=$('modelSelect').value; updateSnippets();
+    }catch(err){ $('modelCount').textContent='Model discovery unavailable'; $('gatewayState').classList.remove('good'); $('gatewayState').textContent='● Gateway unavailable'; toast('Model discovery failed: '+err.message); }
+  }
 
-    function modelGroup(model) {
-      const owner = String(model.owned_by || '').toLowerCase();
-      const id = String(model.id || '').toLowerCase();
-      if (owner.includes('qwen') || id.startsWith('qwen') || id.startsWith('qwq')) return '🐉 Qwen Cloud';
-      if (owner.includes('openai') || id.startsWith('gpt-') || id.startsWith('o1') || id.startsWith('o3') || id.startsWith('o4') || id.startsWith('chatgpt')) return '🤖 ChatGPT Cloud';
-      if (owner.includes('anthropic') || id.startsWith('claude')) return '🧠 Claude';
-      return '⚡ Gemini Cloud';
-    }
+  async function streamChat(){
+    if(state.streaming) return; const prompt=$('promptInput').value.trim(); if(!prompt) return; const model=$('modelSelect').value || 'gemini-3.8-flash'; const system=$('systemPrompt').value.trim();
+    state.streaming=true; state.startedAt=performance.now(); state.firstTokenAt=0; state.outputChars=0; setStatus('STREAMING',true); $('sendBtn').disabled=true; $('sendBtn').textContent='Stop';
+    addMessage('user',prompt); const assistant=addMessage('assistant','',true); const messages=[]; if(system) messages.push({role:'system',content:system}); state.conversation.forEach(m=>messages.push(m)); messages.push({role:'user',content:prompt});
+    const payload={model,messages,stream:true,temperature:Number($('temperature').value)}; let full=''; const started=performance.now();
+    try{
+      const r=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!r.ok) throw new Error((await r.text()).slice(0,300)); if(!r.body) throw new Error('Streaming body unavailable');
+      const reader=r.body.getReader(); const decoder=new TextDecoder(); let buffer='';
+      while(true){ const {done,value}=await reader.read(); if(done) break; buffer += decoder.decode(value,{stream:true}); const chunks=buffer.split(/\n\n/); buffer=chunks.pop()||''; for(const evt of chunks){ for(const line of evt.split(/\r?\n/)){ if(!line.startsWith('data:')) continue; const raw=line.slice(5).trim(); if(raw==='[DONE]') continue; try{ const data=JSON.parse(raw); const delta=data.choices?.[0]?.delta?.content || ''; if(delta){ if(!state.firstTokenAt) state.firstTokenAt=performance.now(); full+=delta; state.outputChars=full.length; assistant.bubble.textContent=full; const cur=document.createElement('span'); cur.className='cursor'; assistant.bubble.appendChild(cur); scrollBottom(); updateTelemetry((performance.now()-started)/1000); } }catch{} } } }
+      const elapsed=(performance.now()-started)/1000; assistant.bubble.textContent=full||'No text returned.'; assistant.meta.textContent=(estimateTokens(full))+' output tokens · '+elapsed.toFixed(2)+'s'; state.conversation.push({role:'user',content:prompt},{role:'assistant',content:full}); saveState(); updateTelemetry(elapsed); setStatus('READY',false);
+    }catch(err){ assistant.bubble.textContent='Request failed: '+err.message; assistant.meta.textContent='gateway error'; setStatus('ERROR',false); }
+    finally{ state.streaming=false; $('sendBtn').disabled=false; $('sendBtn').textContent='Send ↗'; saveState(); }
+  }
 
-    async function loadCloudModels() {
-      const previous = localStorage.getItem('unified-selected-model') || modelSelect.value;
-      try {
-        const response = await fetch('/v1/models', { cache: 'no-store' });
-        if (!response.ok) throw new Error(`Model discovery failed (${response.status})`);
-        const payload = await response.json();
-        const models = Array.isArray(payload.data) ? payload.data.filter((model) => model && model.id) : [];
-        if (!models.length) throw new Error('No cloud models available');
+  async function testApi(){ const base=$('apiBase').value.trim().replace(/\/$/,''); const model=$('apiModel').value; const prompt=$('apiPrompt').value.trim(); $('apiResultStatus').textContent='Testing…'; $('apiResult').textContent=''; const started=performance.now(); try{ const r=await fetch(base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false,temperature:0.7})}); const text=await r.text(); let parsed; try{parsed=JSON.parse(text)}catch{parsed=text}; $('apiResultStatus').textContent=r.ok?'✓ '+r.status+' · '+((performance.now()-started)/1000).toFixed(2)+'s':'✕ '+r.status; $('apiResultStatus').className=r.ok?'result-ok':'result-bad'; $('apiResult').textContent=typeof parsed==='string'?parsed:JSON.stringify(parsed,null,2); }catch(err){ $('apiResultStatus').textContent='✕ Network error'; $('apiResultStatus').className='result-bad'; $('apiResult').textContent=err.message; } }
+  async function health(){ try{ const r=await fetch('/health',{cache:'no-store'}); const data=await r.json(); $('apiResultStatus').textContent='✓ healthy'; $('apiResultStatus').className='result-ok'; $('apiResult').textContent=JSON.stringify(data,null,2); }catch(err){ $('apiResultStatus').textContent='✕ unavailable'; $('apiResultStatus').className='result-bad'; $('apiResult').textContent=err.message; } }
 
-        const groups = new Map();
-        models.forEach((model) => {
-          const group = modelGroup(model);
-          if (!groups.has(group)) groups.set(group, []);
-          groups.get(group).push(model);
-        });
-        modelSelect.replaceChildren();
-        groups.forEach((entries, label) => {
-          const optgroup = document.createElement('optgroup');
-          optgroup.label = label;
-          entries.sort((left, right) => String(left.id).localeCompare(String(right.id)));
-          entries.forEach((model) => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.id;
-            optgroup.appendChild(option);
-          });
-          modelSelect.appendChild(optgroup);
-        });
-        modelSelect.value = models.some((model) => model.id === previous) ? previous : models[0].id;
-        currentModelLabel.textContent = modelSelect.value;
-        logEvent(`Loaded ${models.length} cloud models`, 'phase');
-      } catch (error) {
-        logEvent(error.message, 'error');
-      }
-    }
+  function updateSnippets(){ const base=$('apiBase').value.trim().replace(/\/$/,''); const model=$('apiModel').value||'gemini-3.8-flash'; const prompt=$('apiPrompt').value||''; $('curlCode').textContent=`curl ${base}/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer local" \\\n  -d '{\n    "model": "${model}",\n    "messages": [{"role":"user","content":${JSON.stringify(prompt)}}],\n    "stream": true\n  }'`;
+    $('pythonCode').textContent=`from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${base}",\n    api_key="local"\n)\n\nresponse = client.chat.completions.create(\n    model="${model}",\n    messages=[{"role": "user", "content": ${JSON.stringify(prompt)}}],\n    stream=True,\n)\n\nfor chunk in response:\n    print(chunk.choices[0].delta.content or "", end="")`;
+    $('jsCode').textContent=`const response = await fetch("${base}/chat/completions", {\n  method: "POST",\n  headers: {\n    "Content-Type": "application/json",\n    "Authorization": "Bearer local"\n  },\n  body: JSON.stringify({\n    model: "${model}",\n    messages: [{ role: "user", content: ${JSON.stringify(prompt)} }],\n    stream: true\n  })\n});\n\nconst reader = response.body.getReader();\n// Parse SSE data: chunks and consume each delta.`; }
+  function exportConversation(){ const data={exportedAt:new Date().toISOString(),model:$('modelSelect').value,conversation:state.conversation}; const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='web2api-chat.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+  function downloadConfig(){ const cfg={baseURL:$('apiBase').value,chatCompletionsEndpoint:$('apiBase').value.replace(/\/$/,'')+'/chat/completions',modelsEndpoint:$('apiBase').value.replace(/\/$/,'')+'/models',authentication:'Bearer local (router currently ignores upstream authorization)'}; const blob=new Blob([JSON.stringify(cfg,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='web2api-client-config.json'; a.click(); }
+  async function copyText(text){ try{ await navigator.clipboard.writeText(text); toast('Copied'); }catch{ toast('Clipboard unavailable'); } }
 
-    modelSelect.addEventListener('change', () => {
-      currentModelLabel.textContent = modelSelect.value;
-      localStorage.setItem('unified-selected-model', modelSelect.value);
-      logEvent(`Model switched to ${modelSelect.value}`, 'phase');
-      promptInput.focus();
-    });
+  $('chatMode').onclick=()=>{ $('chatMode').classList.add('active');$('apiMode').classList.remove('active');$('chatView').classList.add('active');$('apiView').classList.remove('active'); };
+  $('apiMode').onclick=()=>{ $('apiMode').classList.add('active');$('chatMode').classList.remove('active');$('apiView').classList.add('active');$('chatView').classList.remove('active'); updateSnippets(); };
+  $('modelSelect').onchange=()=>{ $('modelLabel').textContent=$('modelSelect').value; $('routeLabel').textContent='Unified router → '+modelOwner($('modelSelect').value); $('apiModel').value=$('modelSelect').value; localStorage.setItem('web2api-model',$('modelSelect').value); updateSnippets(); };
+  $('apiModel').onchange=updateSnippets; $('apiBase').oninput=updateSnippets; $('apiPrompt').oninput=updateSnippets; $('temperature').oninput=()=>$('tempVal').textContent=$('temperature').value;
+  $('sendBtn').onclick=streamChat; $('promptInput').onkeydown=(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();streamChat()}}; $('refreshModels').onclick=loadModels; $('exportChat').onclick=exportConversation; $('clearChat').onclick=()=>{state.conversation=[];$('messages').innerHTML='<div class="empty" id="welcome"><div style="font-size:40px">🧠</div><h2>Conversation cleared.</h2><p>Your browser-local chat history has been reset.</p></div>';saveState();}; $('testApi').onclick=testApi; $('healthApi').onclick=health; $('copyEndpoint').onclick=()=>copyText($('apiBase').value); $('openModels').onclick=()=>window.open($('apiBase').value.replace(/\/$/,'')+'/models','_blank'); $('downloadConfig').onclick=downloadConfig;
+  document.querySelectorAll('[data-copy]').forEach(btn=>btn.onclick=()=>copyText($(btn.dataset.copy).textContent)); document.querySelectorAll('[data-prompt]').forEach(btn=>btn.onclick=()=>{$('promptInput').value=btn.dataset.prompt;$('promptInput').focus()});
 
-    loadCloudModels();
-
-    // Auto-expand textarea
-    promptInput.addEventListener('input', () => {
-      promptInput.style.height = 'auto';
-      promptInput.style.height = Math.min(promptInput.scrollHeight, 200) + 'px';
-    });
-
-    promptInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-
-    function logEvent(text, type = '') {
-      const now = new Date().toTimeString().split(' ')[0];
-      const div = document.createElement('div');
-      div.className = `event-line ${type ? 'ev-' + type : ''}`;
-      div.innerHTML = `<span class="time">[${now}]</span> ${escapeHtml(text)}`;
-      eventLogs.appendChild(div);
-      eventLogs.scrollTop = eventLogs.scrollHeight;
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    function renderMarkdown(text) {
-      let html = escapeHtml(text);
-      // Code blocks ```lang\ncode\n```
-      html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (m, lang, code) => {
-        return `<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${code}</code></pre>`;
-      });
-      // Inline code
-      html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-      // Bold
-      html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      // Italic
-      html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-      // Newlines to <br> outside <pre>
-      const parts = html.split(/(<pre[\s\S]*?<\/pre>)/g);
-      for (let i = 0; i < parts.length; i++) {
-        if (!parts[i].startsWith('<pre')) {
-          parts[i] = parts[i].replace(/\n/g, '<br>');
-        }
-      }
-      return parts.join('');
-    }
-
-    function copyCode(btn) {
-      const code = btn.parentElement.querySelector('code').innerText;
-      navigator.clipboard.writeText(code).then(() => {
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
-      });
-    }
-
-    function clearChat() {
-      if (isStreaming) return;
-      conversation = [];
-      chatContainer.innerHTML = '';
-      logEvent('Conversation cleared', 'phase');
-    }
-
-    async function sendMessage() {
-      const prompt = promptInput.value.trim();
-      if (!prompt || isStreaming) return;
-
-      const model = modelSelect.value;
-      promptInput.value = '';
-      promptInput.style.height = 'auto';
-
-      // Append User message
-      conversation.push({ role: 'user', content: prompt });
-      appendMessage('user', prompt);
-
-      // Create Assistant placeholder
-      const assistantBox = appendMessage('assistant', '');
-      const cursor = document.createElement('span');
-      cursor.className = 'streaming-cursor';
-      assistantBox.appendChild(cursor);
-
-      isStreaming = true;
-      sendBtn.disabled = true;
-      statusBadge.className = 'status-badge streaming';
-      statusBadge.innerHTML = '<span class="dot"></span> Streaming';
-
-      // Reset Telemetry
-      valTokens.textContent = '0';
-      valTps.textContent = '0.0';
-      valTtft.textContent = '...';
-      valElapsed.textContent = '0.0 s';
-
-      const startTime = performance.now();
-      let firstTokenTime = null;
-      let tokenCount = 0;
-      let fullText = '';
-      let streamError = null;
-
-      logEvent(`Connecting to /v1/chat/completions (model: ${model})...`, 'phase');
-
-      try {
-        const res = await fetch('/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: model,
-            messages: conversation,
-            stream: true,
-          }),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`HTTP ${res.status}: ${errText}`);
-        }
-
-        logEvent('SSE connection established (HTTP 200). Receiving stream...', 'phase');
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop(); // keep remainder
-
-          for (const rawLine of lines) {
-            const line = rawLine.trim();
-            if (!line) continue;
-
-            if (line.startsWith(':')) {
-              // SSE comment / heartbeat
-              logEvent(line, 'phase');
-              continue;
-            }
-
-            if (line.startsWith('data: ')) {
-              const dataStr = line.slice(6).trim();
-              if (dataStr === '[DONE]') {
-                logEvent('Stream received [DONE]', 'phase');
-                break;
-              }
-
-              try {
-                const parsed = JSON.parse(dataStr);
-                if (parsed.error) {
-                  streamError = parsed.error.message || parsed.error.details || 'Upstream model error';
-                  logEvent(`Upstream error: ${streamError}`, 'error');
-                  break;
-                }
-                if (parsed.choices?.[0]?.finish_reason === 'error') {
-                  streamError = 'The upstream model reported an error';
-                  logEvent(`Upstream error: ${streamError}`, 'error');
-                  break;
-                }
-                const delta = parsed.choices?.[0]?.delta?.content;
-                if (delta) {
-                  if (!firstTokenTime) {
-                    firstTokenTime = performance.now();
-                    const ttftMs = Math.round(firstTokenTime - startTime);
-                    valTtft.textContent = `${ttftMs} ms`;
-                    logEvent(`First token arrived in ${ttftMs} ms`, 'phase');
-                  }
-
-                  tokenCount++;
-                  fullText += delta;
-
-                  // Update Telemetry
-                  const elapsedSec = (performance.now() - startTime) / 1000;
-                  const tps = (tokenCount / (elapsedSec || 0.001)).toFixed(1);
-                  valTokens.textContent = tokenCount;
-                  valTps.textContent = tps;
-                  valElapsed.textContent = `${elapsedSec.toFixed(1)} s`;
-
-                  // Update UI text
-                  assistantBox.innerHTML = renderMarkdown(fullText);
-                  assistantBox.appendChild(cursor);
-                  chatContainer.scrollTop = chatContainer.scrollHeight;
-
-                  if (tokenCount % 10 === 0 || delta.length > 5) {
-                    logEvent(`delta: "${delta.replace(/\n/g, '\\n')}" (${tps} tok/s)`, 'token');
-                  }
-                }
-              } catch (e) {
-                // Ignore parse errors on raw events
-              }
-            }
-          }
-        }
-
-        if (streamError) throw new Error(streamError);
-
-        // Finished streaming
-        if (cursor.parentNode) cursor.remove();
-        assistantBox.innerHTML = renderMarkdown(fullText);
-        conversation.push({ role: 'assistant', content: fullText });
-
-        const totalElapsed = ((performance.now() - startTime) / 1000).toFixed(2);
-        const finalTps = (tokenCount / (parseFloat(totalElapsed) || 0.001)).toFixed(1);
-        valElapsed.textContent = `${totalElapsed} s`;
-        valTps.textContent = finalTps;
-
-        logEvent(`Generation complete: ${tokenCount} tokens in ${totalElapsed}s (${finalTps} tps)`, 'phase');
-        statusBadge.className = 'status-badge';
-        statusBadge.innerHTML = '<span class="dot"></span> Ready';
-
-      } catch (err) {
-        logEvent(`Error: ${err.message}`, 'error');
-        if (cursor.parentNode) cursor.remove();
-        assistantBox.innerHTML += `<p style="color:var(--red); margin-top:10px;">⚠️ Stream error: ${escapeHtml(err.message)}</p>`;
-        statusBadge.className = 'status-badge error';
-        statusBadge.innerHTML = '<span class="dot"></span> Error';
-      } finally {
-        isStreaming = false;
-        sendBtn.disabled = false;
-        promptInput.focus();
-      }
-    }
-
-    function appendMessage(role, content) {
-      const msgDiv = document.createElement('div');
-      msgDiv.className = 'message';
-      const avatarDiv = document.createElement('div');
-      avatarDiv.className = `avatar ${role}`;
-      avatarDiv.textContent = role === 'user' ? 'U' : 'AI';
-
-      const contentDiv = document.createElement('div');
-      contentDiv.className = 'content-box';
-      contentDiv.innerHTML = renderMarkdown(content);
-
-      msgDiv.appendChild(avatarDiv);
-      msgDiv.appendChild(contentDiv);
-      chatContainer.appendChild(msgDiv);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-      return contentDiv;
-    }
-  </script>
+  restoreState(); if(state.conversation.length){ $('welcome')?.remove(); state.conversation.forEach(m=>addMessage(m.role,m.content)); } loadModels(); updateSnippets();
+</script>
 </body>
 </html>
