@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use or adapt this project, please cite the current project and acknowledge the upstream gemini-web2api project by Sophomoresty."
+title: "Gemini Web2API — Unified AI Gateway"
+type: software
+abstract: >-
+  A local protocol-translation gateway that unifies Gemini, Qwen and
+  ChatGPT-compatible web backends behind OpenAI-style and Anthropic-compatible
+  interfaces with streaming, model discovery and developer tooling.
+version: "2026.09"
+date-released: "2026-09-15"
+license: MIT
+repository-code: "https://github.com/viditshah5656/gemini-web2api"
+authors:
+  - family-names: Shah
+    given-names: Vidit
+    orcid: "https://orcid.org/0009-0009-0658-6157"
+references:
+  - authors:
+      - name: Sophomoresty
+    title: "gemini-web2api"
+    type: software
+    url: "https://github.com/Sophomoresty/gemini-web2api"
+    notes: "Upstream MIT-licensed project providing the original Gemini Web to OpenAI-compatible API foundation used by this repository."
+keywords:
+  - Gemini
+  - Web2API
+  - OpenAI-compatible
+  - API gateway
+  - LLM
+  - streaming
+  - protocol translation
+  - Qwen
+  - ChatGPT
