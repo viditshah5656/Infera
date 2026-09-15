@@ -1,15 +1,175 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050812"><meta name="description" content="Infera — local-first AI inference gateway. Run the gateway on your machine and connect OpenAI-compatible clients without routing API traffic through the website."><title>Infera — Local AI Inference Gateway</title><style>
-:root{color-scheme:dark;--bg:#050812;--panel:rgba(10,17,30,.72);--panel2:rgba(255,255,255,.035);--line:rgba(255,255,255,.09);--text:#eef6ff;--muted:#91a4bb;--cyan:#7dd3fc;--violet:#a78bfa;--green:#86efac;--shadow:0 28px 90px rgba(0,0,0,.42)}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{overflow-x:hidden}body:before{content:"";position:fixed;inset:-15%;z-index:-2;background:radial-gradient(circle at 16% 12%,rgba(14,165,233,.18),transparent 28%),radial-gradient(circle at 83% 17%,rgba(124,58,237,.17),transparent 27%),radial-gradient(circle at 52% 93%,rgba(34,197,94,.08),transparent 28%);filter:blur(22px)}body:after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:42px 42px}a{color:inherit}.wrap{width:min(1180px,calc(100% - 28px));margin:18px auto 36px}.glass{border:1px solid var(--line);background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.022));backdrop-filter:blur(24px);box-shadow:var(--shadow);border-radius:26px}header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 16px;position:sticky;top:12px;z-index:20}.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(125,211,252,.17),rgba(167,139,250,.18));border:1px solid rgba(125,211,252,.28);font-size:20px}.eyebrow{font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}.brand h1{font-size:15px;margin:2px 0 0}.badge{padding:8px 11px;border:1px solid rgba(134,239,172,.24);color:var(--green);background:rgba(134,239,172,.05);border-radius:999px;font-size:11px;font-weight:800}main{margin-top:18px}.hero{padding:42px 34px}.hero h2{font-size:clamp(38px,6vw,72px);line-height:.98;letter-spacing:-.055em;margin:0;max-width:900px}.gradient{background:linear-gradient(110deg,var(--text),var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}.hero p{max-width:790px;color:var(--muted);font-size:16px;line-height:1.8;margin:22px 0 0}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;border:1px solid var(--line);border-radius:14px;padding:12px 15px;background:rgba(255,255,255,.045);font-size:12px;font-weight:800}.btn.primary{background:linear-gradient(135deg,rgba(14,165,233,.24),rgba(124,58,237,.22));border-color:rgba(125,211,252,.3)}.btn:hover{border-color:rgba(125,211,252,.35);transform:translateY(-1px)}.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px;margin-top:16px}.panel{padding:22px}.panel h3{margin:0 0 6px;font-size:14px;letter-spacing:.04em}.sub{color:var(--muted);font-size:11px;line-height:1.65}.code{margin-top:15px;border:1px solid var(--line);border-radius:16px;background:#02060e;padding:14px;overflow:auto;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#dbeafe}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.key{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.value{font-size:12px;font-weight:800}.ok{color:var(--green)}.steps{display:grid;gap:9px;margin-top:16px}.step{display:grid;grid-template-columns:32px 1fr;gap:11px;padding:12px;border:1px solid var(--line);border-radius:15px;background:var(--panel2)}.num{width:32px;height:32px;border-radius:11px;display:grid;place-items:center;background:rgba(125,211,252,.08);border:1px solid rgba(125,211,252,.16);font-weight:900;font-size:12px}.step b{font-size:12px}.step p{margin:4px 0 0;color:var(--muted);font-size:10px;line-height:1.6}.local{margin-top:16px;padding:22px}.local-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.local h3{margin:0;font-size:17px}.local p{margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.7}.test{margin-top:16px;display:flex;gap:9px}.input{flex:1;border:1px solid var(--line);border-radius:14px;background:rgba(2,6,14,.7);color:var(--text);padding:12px;outline:0}.result{margin-top:10px;min-height:20px;color:var(--muted);font-size:11px}footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:10px;padding:15px 2px}.links{display:flex;gap:14px}.links a{text-decoration:none}.links a:hover{color:var(--text)}@media(max-width:850px){.grid{grid-template-columns:1fr}.hero{padding:30px 22px}.local-top{flex-direction:column}}@media(max-width:600px){.wrap{width:calc(100% - 14px);margin-top:7px}header{position:static}.hero h2{font-size:40px}.test{flex-direction:column}.test .btn{justify-content:center}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
-</style></head><body><div class="wrap"><header class="glass"><div class="brand"><div class="mark">⚡</div><div><div class="eyebrow">Infera</div><h1>Local AI Inference Gateway</h1></div></div><div class="badge">● LOCAL-FIRST</div></header><main><section class="glass hero"><div class="eyebrow">OpenAI-compatible · local runtime · provider adapters</div><h2>Bring AI inference <span class="gradient">to your machine.</span></h2><p>Infera is a local-first control surface for a unified AI gateway. The hosted page is only the interface: the actual gateway, credentials, prompts and model traffic stay on the user's computer at <b>127.0.0.1</b>.</p><div class="actions"><a class="btn primary" href="#connect">Connect local gateway →</a><a class="btn" href="https://github.com/viditshah5656/Infera" target="_blank" rel="noopener">View source ↗</a></div></section><section class="grid"><div class="glass panel"><h3>Local inference boundary</h3><div class="sub">The website does not become your AI server and does not proxy your model requests through GitHub Pages.</div><div class="code">PUBLIC INFERA PAGE
-        │
-        │ browser control surface
-        ▼
-   127.0.0.1:8081
-        │
-        ├── Gemini Web
-        ├── Qwen / qwen2api
-        └── ChatGPT-compatible backend
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#050711">
+  <meta name="description" content="Infera — a premium local-first AI inference gateway control surface for OpenAI-compatible clients.">
+  <title>Infera — Local AI Inference</title>
+  <style>
+    :root{
+      color-scheme:dark;
+      --bg:#03050c;
+      --bg2:#060914;
+      --glass:rgba(12,16,28,.54);
+      --glass2:rgba(255,255,255,.045);
+      --glass3:rgba(255,255,255,.065);
+      --line:rgba(255,255,255,.085);
+      --line2:rgba(150,190,255,.22);
+      --text:#f4f8ff;
+      --muted:#8c9bb1;
+      --cyan:#7dd3fc;
+      --blue:#60a5fa;
+      --violet:#a78bfa;
+      --green:#8ef0b1;
+      --yellow:#fde68a;
+      --red:#fda4af;
+      --shadow:0 30px 120px rgba(0,0,0,.48);
+      --r:28px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;min-height:100vh;background:
+      radial-gradient(circle at 10% 8%,rgba(56,189,248,.10),transparent 25%),
+      radial-gradient(circle at 88% 8%,rgba(139,92,246,.11),transparent 25%),
+      radial-gradient(circle at 50% 100%,rgba(59,130,246,.07),transparent 28%),
+      linear-gradient(180deg,var(--bg),var(--bg2));
+      color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.55;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:44px 44px;mask-image:linear-gradient(to bottom,black,transparent 85%)}
+    body:after{content:"";position:fixed;inset:-20%;pointer-events:none;z-index:-1;background:conic-gradient(from 180deg at 50% 50%,transparent 0 23%,rgba(125,211,252,.045),transparent 43% 64%,rgba(167,139,250,.045),transparent 82%);filter:blur(55px);animation:drift 18s linear infinite}
+    @keyframes drift{to{transform:rotate(360deg)}}
+    ::selection{background:rgba(125,211,252,.22)}
+    a{color:inherit}
+    .shell{width:min(1240px,calc(100% - 28px));margin:18px auto 48px}
+    .glass{border:1px solid var(--line);background:linear-gradient(135deg,rgba(255,255,255,.065),rgba(255,255,255,.018));backdrop-filter:blur(28px) saturate(150%);-webkit-backdrop-filter:blur(28px) saturate(150%);box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.055);border-radius:var(--r);position:relative;overflow:hidden}
+    .glass:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(130deg,rgba(255,255,255,.055),transparent 22%,transparent 78%,rgba(125,211,252,.018));opacity:.7}
+    .glass>*{position:relative}
 
-Prompts + responses remain on the local path.</div></div><div class="glass panel"><h3>Local API surface</h3><div class="row"><span class="key">Gateway</span><span class="value">127.0.0.1:8081</span></div><div class="row"><span class="key">Chat</span><span class="value">/v1/chat/completions</span></div><div class="row"><span class="key">Responses</span><span class="value">/v1/responses</span></div><div class="row"><span class="key">Messages</span><span class="value">/v1/messages</span></div><div class="row"><span class="key">Models</span><span class="value ok">/v1/models</span></div></div></section><section class="glass local" id="connect"><div class="local-top"><div><h3>Connect to your local gateway</h3><p>Start Infera locally first. This page can then talk directly to localhost without routing your AI traffic through the hosted website.</p></div><div class="badge" id="status">● CHECKING</div></div><div class="test"><input class="input" id="base" value="http://127.0.0.1:8081" aria-label="Local gateway address"><button class="btn primary" id="check">Check /health</button><a class="btn" id="open" href="http://127.0.0.1:8081/" target="_blank" rel="noopener">Open local console ↗</a></div><div class="result" id="result">Waiting for a local gateway…</div></section><section class="glass panel" style="margin-top:16px"><h3>From zero to a local OpenAI-compatible API</h3><div class="steps"><div class="step"><div class="num">01</div><div><b>Install Infera</b><p>Get the repository and keep local configuration, sessions and credentials on your own machine.</p></div></div><div class="step"><div class="num">02</div><div><b>Start the gateway</b><p>Launch the provider adapters and unified router on localhost.</p></div></div><div class="step"><div class="num">03</div><div><b>Connect your app</b><p>Point an OpenAI-compatible SDK or application at <code>http://127.0.0.1:8081/v1</code>.</p></div></div><div class="step"><div class="num">04</div><div><b>Keep the boundary local</b><p>Only expose the gateway beyond localhost when you intentionally add authentication, TLS and network controls.</p></div></div></div></section></main><footer><div>Infera · Built by Vidit Shah</div><div class="links"><a href="https://github.com/viditshah5656/Infera" target="_blank" rel="noopener">GitHub</a><a href="https://github.com/Sophomoresty/gemini-web2api" target="_blank" rel="noopener">Original project · Sophomoresty</a></div></footer></div><script>const base=document.getElementById('base'),statusEl=document.getElementById('status'),result=document.getElementById('result'),open=document.getElementById('open'),check=document.getElementById('check');function normal(){return base.value.trim().replace(/\/+$/,'')||'http://127.0.0.1:8081'}function setState(text){statusEl.textContent='● '+text;statusEl.className='badge'}function syncOpen(){open.href=normal()+'/'}async function probe(){const url=normal();syncOpen();setState('CHECKING');result.textContent='Probing '+url+'/health …';try{const r=await fetch(url+'/health',{cache:'no-store'});const data=await r.text();if(!r.ok)throw new Error('HTTP '+r.status);setState('LOCAL CONNECTED');result.textContent='Gateway is reachable from this browser. '+data.slice(0,260);return true}catch(e){setState('OFFLINE');result.textContent='No local gateway detected. Start Infera on 127.0.0.1:8081, then check again. ('+e.message+')';return false}}base.addEventListener('input',syncOpen);check.addEventListener('click',probe);syncOpen();probe();</script></body></html>
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:12px 14px;position:sticky;top:12px;z-index:50}
+    .brand{display:flex;align-items:center;gap:12px}.brandmark{width:46px;height:46px;border-radius:16px;display:grid;place-items:center;background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.22),rgba(125,211,252,.10) 40%,rgba(167,139,250,.08));border:1px solid rgba(125,211,252,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 35px rgba(96,165,250,.10)}
+    .brandmark svg{width:23px;height:23px}.eyebrow{font-size:9px;letter-spacing:.17em;text-transform:uppercase;color:#8190a8}.brand h1{font-size:14px;margin:2px 0 0;letter-spacing:.01em}.nav{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.nav a{font-size:11px;color:var(--muted);text-decoration:none;padding:9px 11px;border:1px solid transparent;border-radius:12px}.nav a:hover{color:var(--text);background:rgba(255,255,255,.035);border-color:var(--line)}
+    .status{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;border:1px solid rgba(142,240,177,.20);background:rgba(142,240,177,.045);color:var(--green);font-size:10px;font-weight:900;letter-spacing:.07em}.dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 16px currentColor;animation:pulse 1.8s ease-in-out infinite}@keyframes pulse{50%{transform:scale(.6);opacity:.55}}
+
+    .hero{margin-top:18px;padding:54px 44px 42px;min-height:560px;display:grid;align-items:center}.hero .glow{position:absolute;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.15),transparent 68%);filter:blur(6px);right:4%;top:-70px;pointer-events:none}.hero-grid{display:grid;grid-template-columns:minmax(0,1.17fr) 360px;gap:30px;align-items:end}.hero h2{font-size:clamp(46px,6.4vw,84px);line-height:.92;letter-spacing:-.065em;margin:12px 0 18px;max-width:930px}.grad{background:linear-gradient(115deg,#f7fbff 10%,#a8dcff 48%,#bda8ff 88%);-webkit-background-clip:text;background-clip:text;color:transparent}.hero-copy{max-width:760px;font-size:16px;line-height:1.85;color:var(--muted);margin:0}.hero-copy b{color:#dceaff}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:25px}.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 15px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.04);text-decoration:none;font-size:11px;font-weight:900;transition:.22s ease}.btn:hover{transform:translateY(-2px);border-color:var(--line2);background:rgba(255,255,255,.065)}.btn.primary{background:linear-gradient(135deg,rgba(96,165,250,.24),rgba(167,139,250,.19));border-color:rgba(125,211,252,.30);box-shadow:0 14px 38px rgba(96,165,250,.10)}.micro{margin-top:19px;display:flex;gap:10px;flex-wrap:wrap;color:#718198;font-size:9px}.micro span{padding:7px 9px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.022)}
+
+    .hero-card{padding:18px;border-radius:23px;border:1px solid rgba(255,255,255,.075);background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.018));box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}.hero-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}.hero-card-title{font-size:10px;font-weight:900;letter-spacing:.09em}.tiny{font-size:9px;color:var(--muted)}.ring{width:100%;height:190px;border-radius:20px;display:grid;place-items:center;background:radial-gradient(circle at center,rgba(96,165,250,.11),rgba(167,139,250,.035) 35%,rgba(2,5,12,.25) 70%);border:1px solid var(--line);position:relative}.ring:before,.ring:after{content:"";position:absolute;border-radius:50%;border:1px solid rgba(125,211,252,.13);inset:25px;animation:orbit 9s linear infinite}.ring:after{inset:47px;border-color:rgba(167,139,250,.16);animation-duration:6s;animation-direction:reverse}@keyframes orbit{to{transform:rotate(360deg)}}.ring-core{width:86px;height:86px;border-radius:28px;display:grid;place-items:center;border:1px solid rgba(125,211,252,.28);background:linear-gradient(135deg,rgba(125,211,252,.13),rgba(167,139,250,.13));box-shadow:0 0 55px rgba(96,165,250,.18),inset 0 1px 0 rgba(255,255,255,.12)}.ring-core span{font-size:20px}.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.chip{font-size:9px;color:#aebbd0;border:1px solid var(--line);background:rgba(255,255,255,.025);padding:7px 9px;border-radius:10px}
+
+    .section-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:38px 2px 12px}.section-head h3{font-size:13px;margin:0;letter-spacing:.08em;text-transform:uppercase}.section-head p{margin:0;color:var(--muted);font-size:10px}
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{padding:20px;min-height:188px}.icon{width:38px;height:38px;border-radius:14px;display:grid;place-items:center;border:1px solid var(--line2);background:rgba(125,211,252,.055);margin-bottom:18px}.icon svg{width:19px;height:19px}.card h4{margin:0 0 7px;font-size:14px}.card p{margin:0;color:var(--muted);font-size:10px;line-height:1.7}
+
+    .architecture{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}.panel{padding:20px}.panel h4{margin:0 0 7px;font-size:14px}.sub{color:var(--muted);font-size:10px;line-height:1.7}.code{margin-top:14px;border:1px solid var(--line);border-radius:18px;background:rgba(1,4,10,.66);padding:16px;color:#cde7ff;font:11px/1.8 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}.endpoint-list{display:grid;gap:7px;margin-top:14px}.endpoint{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.024)}.endpoint span:first-child{font:10px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--cyan)}.endpoint span:last-child{font-size:9px;color:var(--muted)}
+
+    .connect{margin-top:14px;padding:22px}.connect-top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.connect-title h3{margin:0;font-size:17px}.connect-title p{margin:6px 0 0;color:var(--muted);font-size:10px;line-height:1.7;max-width:770px}.state{padding:9px 11px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:9px;font-weight:900;color:var(--muted)}.connect-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;margin-top:18px}.input{width:100%;border:1px solid var(--line);border-radius:14px;background:rgba(1,4,10,.66);color:var(--text);padding:12px;outline:none;font:11px ui-monospace,SFMono-Regular,Menlo,monospace}.input:focus{border-color:rgba(125,211,252,.35);box-shadow:0 0 0 4px rgba(125,211,252,.06)}.result{margin-top:10px;min-height:17px;font-size:9px;color:var(--muted)}.result.ok{color:var(--green)}
+
+    .studio{display:grid;grid-template-columns:.9fr 1.1fr;gap:14px;margin-top:14px}.studio .panel{min-height:260px}.studio-badges{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}.studio-badge{padding:8px 10px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.024);font-size:9px;color:#b9c8dc}.studio pre{margin:14px 0 0;overflow:auto;white-space:pre-wrap;color:#d9e9fb;font:10px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.copy{float:right;font-size:9px;color:var(--muted);padding:6px 8px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.03);cursor:pointer}.copy:hover{color:var(--text)}
+
+    .privacy{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.privacy .panel strong{display:block;font-size:14px;margin-bottom:6px}.privacy ul{margin:12px 0 0;padding-left:17px;color:var(--muted);font-size:10px;line-height:1.9}.privacy li::marker{color:var(--cyan)}
+    footer{display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;margin-top:24px;padding:4px 2px;color:#6f8098;font-size:9px}.links{display:flex;gap:13px}.links a{text-decoration:none}.links a:hover{color:var(--text)}
+
+    @media(max-width:980px){.hero-grid,.architecture,.studio{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}.hero-card{max-width:520px}.privacy{grid-template-columns:1fr}}
+    @media(max-width:700px){.shell{width:calc(100% - 14px);margin-top:7px}.topbar{position:static}.nav{display:none}.hero{padding:31px 22px}.hero h2{font-size:48px}.cards{grid-template-columns:1fr}.connect-top{flex-direction:column}.connect-row{grid-template-columns:1fr}.connect-row .btn{justify-content:center}.section-head{align-items:start;flex-direction:column}.studio-badges{gap:5px}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="glass topbar">
+      <div class="brand">
+        <div class="brandmark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M13.4 2.8 6.7 13h4.9l-1 8.2L17.3 11h-4.6l.7-8.2Z" stroke="#dff6ff" stroke-width="1.6" stroke-linejoin="round"/><path d="M13.4 2.8 6.7 13h4.9" stroke="#7dd3fc" stroke-width="2.3" stroke-linecap="round"/></svg></div>
+        <div><div class="eyebrow">INFERA</div><h1>Local AI Inference Gateway</h1></div>
+      </div>
+      <nav class="nav"><a href="#overview">Overview</a><a href="#architecture">Architecture</a><a href="#connect">Connect</a><a href="#studio">API Studio</a></nav>
+      <div class="status"><span class="dot"></span> LOCAL-FIRST</div>
+    </header>
+
+    <main>
+      <section class="glass hero" id="overview">
+        <div class="glow"></div>
+        <div class="hero-grid">
+          <div>
+            <div class="eyebrow">UNIFIED PROTOCOL LAYER · LOCAL RUNTIME · DEVELOPER CONTROL PLANE</div>
+            <h2>Inference that <span class="grad">stays yours.</span></h2>
+            <p class="hero-copy">Infera is a glassy control surface for a unified AI gateway. The hosted page is only the interface; the gateway, credentials, prompts and model traffic remain on the user's machine at <b>127.0.0.1</b>.</p>
+            <div class="actions">
+              <a class="btn primary" href="#connect">Connect local gateway <span>↗</span></a>
+              <a class="btn" href="https://github.com/viditshah5656/Infera" target="_blank" rel="noopener">View source <span>↗</span></a>
+            </div>
+            <div class="micro"><span>OpenAI-compatible</span><span>Anthropic-compatible</span><span>SSE streaming</span><span>Model discovery</span><span>Local by default</span></div>
+          </div>
+          <div class="hero-card">
+            <div class="hero-card-head"><div class="hero-card-title">RUNTIME TOPOLOGY</div><div class="tiny">127.0.0.1</div></div>
+            <div class="ring"><div class="ring-core"><span>⚡</span></div></div>
+            <div class="chips"><div class="chip">Gemini</div><div class="chip">Qwen</div><div class="chip">ChatGPT</div><div class="chip">Responses</div><div class="chip">Messages</div></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="section-head"><div><h3>Why Infera feels different</h3><p>A developer-facing control plane instead of another chat wrapper.</p></div></div>
+      <section class="cards">
+        <article class="glass card"><div class="icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h10" stroke="#9ddcff" stroke-width="1.5" stroke-linecap="round"/></svg></div><h4>One boundary, many backends</h4><p>Normalize provider-specific web behavior behind a single local gateway and familiar client interfaces.</p></article>
+        <article class="glass card"><div class="icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16" stroke="#bba8ff" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" stroke="#bba8ff" stroke-width="1.2"/></svg></div><h4>Real streaming</h4><p>Keep long-running generations alive with SSE streaming, event normalization and live connection visibility.</p></article>
+        <article class="glass card"><div class="icon"><svg viewBox="0 0 24 24" fill="none"><path d="M7 11V7a5 5 0 0 1 10 0v4M5 11h14v9H5z" stroke="#96efba" stroke-width="1.5" stroke-linejoin="round"/></svg></div><h4>Local by default</h4><p>The hosted control surface does not need to proxy model traffic. The gateway binds to localhost unless you intentionally change it.</p></article>
+      </section>
+
+      <div class="section-head" id="architecture"><div><h3>Architecture</h3><p>Protocol translation sits between your application and provider adapters.</p></div></div>
+      <section class="architecture">
+        <article class="glass panel"><h4>Local inference path</h4><div class="sub">The browser controls the local gateway. The hosted page is not the inference server.</div><div class="code">YOUR APP / SDK
+      │
+      ▼
+┌──────────────────────┐
+│       INFERA          │  :8081
+│ routing · translation │
+│ discovery · streaming│
+└───────┬───────┬──────┘
+        │       │
+   ┌────▼─┐  ┌──▼────┐  ┌───────────┐
+   │Gemini│  │ Qwen  │  │ ChatGPT   │
+   │ web  │  │ web   │  │ web       │
+   └──────┘  └───────┘  └───────────┘</div></article>
+        <article class="glass panel"><h4>Local API surface</h4><div class="sub">A familiar boundary for OpenAI-style, Responses-style and Anthropic-style clients.</div><div class="endpoint-list"><div class="endpoint"><span>GET /v1/models</span><span>discovery</span></div><div class="endpoint"><span>POST /v1/chat/completions</span><span>OpenAI</span></div><div class="endpoint"><span>POST /v1/responses</span><span>Responses</span></div><div class="endpoint"><span>POST /v1/messages</span><span>Anthropic</span></div><div class="endpoint"><span>GET /health</span><span>diagnostics</span></div></div></article>
+      </section>
+
+      <section class="glass connect" id="connect">
+        <div class="connect-top"><div class="connect-title"><h3>Connect to your local gateway</h3><p>Start Infera locally, then use this page as a control surface. The probe below reaches localhost directly from your browser; it does not send the request to GitHub Pages' server.</p></div><div class="state" id="state">● CHECKING</div></div>
+        <div class="connect-row"><input class="input" id="base" value="http://127.0.0.1:8081" aria-label="Local Infera gateway URL"><button class="btn primary" id="check">Check health</button><a class="btn" id="open" href="http://127.0.0.1:8081/" target="_blank" rel="noopener">Open local console ↗</a></div>
+        <div class="result" id="result">Checking the local runtime…</div>
+      </section>
+
+      <div class="section-head" id="studio"><div><h3>API Studio</h3><p>Point any compatible client at your local base URL.</p></div></div>
+      <section class="studio">
+        <article class="glass panel"><h4>Compatible client boundary</h4><div class="sub">Use the same local base URL with an OpenAI SDK, curl, a custom application, or another compatible client.</div><div class="studio-badges"><span class="studio-badge">OpenAI SDK</span><span class="studio-badge">curl</span><span class="studio-badge">Python</span><span class="studio-badge">JavaScript</span><span class="studio-badge">Codex-style clients</span></div><div class="code">Base URL
+http://127.0.0.1:8081/v1</div></article>
+        <article class="glass panel"><h4>Example request <button class="copy" id="copy">Copy</button></h4><div class="sub">A minimal chat completion against your local gateway.</div><pre id="snippet">curl -N http://127.0.0.1:8081/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model":"YOUR_MODEL",
+    "messages":[{"role":"user","content":"Hello from Infera"}],
+    "stream":true
+  }'</pre></article>
+      </section>
+
+      <section class="privacy">
+        <article class="glass panel"><strong>Privacy boundary</strong><div class="sub">The intended topology keeps the control surface public while the inference runtime stays local.</div><ul><li>Hosted page serves UI only.</li><li>Gateway defaults to 127.0.0.1.</li><li>Credentials remain on the local machine.</li><li>Do not expose the gateway publicly without deliberate security controls.</li></ul></article>
+        <article class="glass panel"><strong>Open-source provenance</strong><div class="sub">Infera is an extended engineering project with explicit upstream attribution.</div><ul><li>Original foundation: Sophomoresty / gemini-web2api.</li><li>Current project: Vidit Shah / Infera.</li><li>See the repository's attribution, notice and citation files.</li></ul></article>
+      </section>
+    </main>
+
+    <footer><div>Infera · local AI inference control surface · Built by Vidit Shah</div><div class="links"><a href="https://github.com/viditshah5656/Infera" target="_blank" rel="noopener">GitHub</a><a href="https://github.com/Sophomoresty/gemini-web2api" target="_blank" rel="noopener">Original project · Sophomoresty</a></div></footer>
+  </div>
+  <script>
+    const base=document.getElementById('base');
+    const state=document.getElementById('state');
+    const result=document.getElementById('result');
+    const open=document.getElementById('open');
+    const check=document.getElementById('check');
+    const copy=document.getElementById('copy');
+    const snippet=document.getElementById('snippet');
+    const normal=()=>base.value.trim().replace(/\/+$/,'')||'http://127.0.0.1:8081';
+    function sync(){open.href=normal()+'/'}
+    function setState(text,ok){state.textContent='● '+text;state.style.color=ok?'var(--green)':'var(--muted)';state.style.borderColor=ok?'rgba(142,240,177,.20)':'var(--line)';}
+    async function probe(){const url=normal();sync();setState('CHECKING',false);result.textContent='Probing '+url+'/health …';try{const r=await fetch(url+'/health',{cache:'no-store'});const data=await r.text();if(!r.ok)throw new Error('HTTP '+r.status);setState('LOCAL CONNECTED',true);result.className='result ok';result.textContent='Local runtime reachable. '+data.slice(0,280);return true}catch(e){setState('OFFLINE',false);result.className='result';result.textContent='No local runtime detected. Start Infera on 127.0.0.1:8081 and check again. ('+e.message+')';return false}}
+    base.addEventListener('input',sync);check.addEventListener('click',probe);sync();probe();
+    copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(snippet.textContent);copy.textContent='Copied ✓';setTimeout(()=>copy.textContent='Copy',1200)}catch{copy.textContent='Select & copy'}});
+  </script>
+</body>
+</html>
