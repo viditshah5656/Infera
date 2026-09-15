@@ -1,98 +1,15 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#050812">
-  <meta name="description" content="Gemini Web2API — a local-first AI gateway. Run the API on your own machine and connect from any OpenAI-compatible client.">
-  <title>Web2API Local Gateway</title>
-  <style>
-    :root{color-scheme:dark;--bg:#050812;--panel:rgba(10,17,30,.72);--panel2:rgba(255,255,255,.035);--line:rgba(255,255,255,.09);--text:#eef6ff;--muted:#91a4bb;--cyan:#7dd3fc;--violet:#a78bfa;--green:#86efac;--red:#fda4af;--shadow:0 28px 90px rgba(0,0,0,.42)}
-    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{overflow-x:hidden}
-    body:before{content:"";position:fixed;inset:-15%;z-index:-2;background:radial-gradient(circle at 16% 12%,rgba(14,165,233,.18),transparent 28%),radial-gradient(circle at 83% 17%,rgba(124,58,237,.17),transparent 27%),radial-gradient(circle at 52% 93%,rgba(34,197,94,.08),transparent 28%);filter:blur(22px)}
-    body:after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:42px 42px}
-    a{color:inherit}.wrap{width:min(1180px,calc(100% - 28px));margin:18px auto 36px}.glass{border:1px solid var(--line);background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.022));backdrop-filter:blur(24px);box-shadow:var(--shadow);border-radius:26px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 16px;position:sticky;top:12px;z-index:20}.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(125,211,252,.17),rgba(167,139,250,.18));border:1px solid rgba(125,211,252,.28);font-size:20px}.eyebrow{font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}.brand h1{font-size:15px;margin:2px 0 0}.badge{padding:8px 11px;border:1px solid rgba(134,239,172,.24);color:var(--green);background:rgba(134,239,172,.05);border-radius:999px;font-size:11px;font-weight:800}
-    main{margin-top:18px}.hero{padding:42px 34px}.hero h2{font-size:clamp(38px,6vw,72px);line-height:.98;letter-spacing:-.055em;margin:0;max-width:900px}.gradient{background:linear-gradient(110deg,var(--text),var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}.hero p{max-width:760px;color:var(--muted);font-size:16px;line-height:1.8;margin:22px 0 0}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;border:1px solid var(--line);border-radius:14px;padding:12px 15px;background:rgba(255,255,255,.045);font-size:12px;font-weight:800}.btn.primary{background:linear-gradient(135deg,rgba(14,165,233,.24),rgba(124,58,237,.22));border-color:rgba(125,211,252,.3)}.btn:hover{border-color:rgba(125,211,252,.35);transform:translateY(-1px)}
-    .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px;margin-top:16px}.panel{padding:22px}.panel h3{margin:0 0 6px;font-size:14px;letter-spacing:.04em}.sub{color:var(--muted);font-size:11px;line-height:1.65}.code{margin-top:15px;border:1px solid var(--line);border-radius:16px;background:#02060e;padding:14px;overflow:auto;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#dbeafe}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.key{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.value{font-size:12px;font-weight:800}.ok{color:var(--green)}.warn{color:#fde68a}
-    .steps{display:grid;gap:9px;margin-top:16px}.step{display:grid;grid-template-columns:32px 1fr;gap:11px;padding:12px;border:1px solid var(--line);border-radius:15px;background:var(--panel2)}.num{width:32px;height:32px;border-radius:11px;display:grid;place-items:center;background:rgba(125,211,252,.08);border:1px solid rgba(125,211,252,.16);font-weight:900;font-size:12px}.step b{font-size:12px}.step p{margin:4px 0 0;color:var(--muted);font-size:10px;line-height:1.6}
-    .local{margin-top:16px;padding:22px}.local-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.local h3{margin:0;font-size:17px}.local p{margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.7}.test{margin-top:16px;display:flex;gap:9px}.input{flex:1;border:1px solid var(--line);border-radius:14px;background:rgba(2,6,14,.7);color:var(--text);padding:12px;outline:0}.result{margin-top:10px;min-height:20px;color:var(--muted);font-size:11px}
-    footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:10px;padding:15px 2px}.links{display:flex;gap:14px}.links a{text-decoration:none}.links a:hover{color:var(--text)}
-    @media(max-width:850px){.grid{grid-template-columns:1fr}.hero{padding:30px 22px}.local-top{flex-direction:column}}@media(max-width:600px){.wrap{width:calc(100% - 14px);margin-top:7px}header{position:static}.hero h2{font-size:40px}.test{flex-direction:column}.test .btn{justify-content:center}}
-    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
-  </style>
-</head>
-<body>
-<div class="wrap">
-  <header class="glass">
-    <div class="brand"><div class="mark">⚡</div><div><div class="eyebrow">Gemini Web2API</div><h1>Local AI Gateway</h1></div></div>
-    <div class="badge">● LOCAL-FIRST</div>
-  </header>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050812"><meta name="description" content="Infera — local-first AI inference gateway. Run the gateway on your machine and connect OpenAI-compatible clients without routing API traffic through the website."><title>Infera — Local AI Inference Gateway</title><style>
+:root{color-scheme:dark;--bg:#050812;--panel:rgba(10,17,30,.72);--panel2:rgba(255,255,255,.035);--line:rgba(255,255,255,.09);--text:#eef6ff;--muted:#91a4bb;--cyan:#7dd3fc;--violet:#a78bfa;--green:#86efac;--shadow:0 28px 90px rgba(0,0,0,.42)}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{overflow-x:hidden}body:before{content:"";position:fixed;inset:-15%;z-index:-2;background:radial-gradient(circle at 16% 12%,rgba(14,165,233,.18),transparent 28%),radial-gradient(circle at 83% 17%,rgba(124,58,237,.17),transparent 27%),radial-gradient(circle at 52% 93%,rgba(34,197,94,.08),transparent 28%);filter:blur(22px)}body:after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:42px 42px}a{color:inherit}.wrap{width:min(1180px,calc(100% - 28px));margin:18px auto 36px}.glass{border:1px solid var(--line);background:linear-gradient(135deg,rgba(255,255,255,.055),rgba(255,255,255,.022));backdrop-filter:blur(24px);box-shadow:var(--shadow);border-radius:26px}header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 16px;position:sticky;top:12px;z-index:20}.brand{display:flex;align-items:center;gap:12px}.mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(125,211,252,.17),rgba(167,139,250,.18));border:1px solid rgba(125,211,252,.28);font-size:20px}.eyebrow{font-size:10px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}.brand h1{font-size:15px;margin:2px 0 0}.badge{padding:8px 11px;border:1px solid rgba(134,239,172,.24);color:var(--green);background:rgba(134,239,172,.05);border-radius:999px;font-size:11px;font-weight:800}main{margin-top:18px}.hero{padding:42px 34px}.hero h2{font-size:clamp(38px,6vw,72px);line-height:.98;letter-spacing:-.055em;margin:0;max-width:900px}.gradient{background:linear-gradient(110deg,var(--text),var(--cyan),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}.hero p{max-width:790px;color:var(--muted);font-size:16px;line-height:1.8;margin:22px 0 0}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.btn{display:inline-flex;align-items:center;gap:8px;text-decoration:none;border:1px solid var(--line);border-radius:14px;padding:12px 15px;background:rgba(255,255,255,.045);font-size:12px;font-weight:800}.btn.primary{background:linear-gradient(135deg,rgba(14,165,233,.24),rgba(124,58,237,.22));border-color:rgba(125,211,252,.3)}.btn:hover{border-color:rgba(125,211,252,.35);transform:translateY(-1px)}.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px;margin-top:16px}.panel{padding:22px}.panel h3{margin:0 0 6px;font-size:14px;letter-spacing:.04em}.sub{color:var(--muted);font-size:11px;line-height:1.65}.code{margin-top:15px;border:1px solid var(--line);border-radius:16px;background:#02060e;padding:14px;overflow:auto;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#dbeafe}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.key{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.value{font-size:12px;font-weight:800}.ok{color:var(--green)}.steps{display:grid;gap:9px;margin-top:16px}.step{display:grid;grid-template-columns:32px 1fr;gap:11px;padding:12px;border:1px solid var(--line);border-radius:15px;background:var(--panel2)}.num{width:32px;height:32px;border-radius:11px;display:grid;place-items:center;background:rgba(125,211,252,.08);border:1px solid rgba(125,211,252,.16);font-weight:900;font-size:12px}.step b{font-size:12px}.step p{margin:4px 0 0;color:var(--muted);font-size:10px;line-height:1.6}.local{margin-top:16px;padding:22px}.local-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.local h3{margin:0;font-size:17px}.local p{margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.7}.test{margin-top:16px;display:flex;gap:9px}.input{flex:1;border:1px solid var(--line);border-radius:14px;background:rgba(2,6,14,.7);color:var(--text);padding:12px;outline:0}.result{margin-top:10px;min-height:20px;color:var(--muted);font-size:11px}footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:10px;padding:15px 2px}.links{display:flex;gap:14px}.links a{text-decoration:none}.links a:hover{color:var(--text)}@media(max-width:850px){.grid{grid-template-columns:1fr}.hero{padding:30px 22px}.local-top{flex-direction:column}}@media(max-width:600px){.wrap{width:calc(100% - 14px);margin-top:7px}header{position:static}.hero h2{font-size:40px}.test{flex-direction:column}.test .btn{justify-content:center}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style></head><body><div class="wrap"><header class="glass"><div class="brand"><div class="mark">⚡</div><div><div class="eyebrow">Infera</div><h1>Local AI Inference Gateway</h1></div></div><div class="badge">● LOCAL-FIRST</div></header><main><section class="glass hero"><div class="eyebrow">OpenAI-compatible · local runtime · provider adapters</div><h2>Bring AI inference <span class="gradient">to your machine.</span></h2><p>Infera is a local-first control surface for a unified AI gateway. The hosted page is only the interface: the actual gateway, credentials, prompts and model traffic stay on the user's computer at <b>127.0.0.1</b>.</p><div class="actions"><a class="btn primary" href="#connect">Connect local gateway →</a><a class="btn" href="https://github.com/viditshah5656/Infera" target="_blank" rel="noopener">View source ↗</a></div></section><section class="grid"><div class="glass panel"><h3>Local inference boundary</h3><div class="sub">The website does not become your AI server and does not proxy your model requests through GitHub Pages.</div><div class="code">PUBLIC INFERA PAGE
+        │
+        │ browser control surface
+        ▼
+   127.0.0.1:8081
+        │
+        ├── Gemini Web
+        ├── Qwen / qwen2api
+        └── ChatGPT-compatible backend
 
-  <main>
-    <section class="glass hero">
-      <div class="eyebrow">OpenAI-compatible · local runtime · provider adapters</div>
-      <h2>Run the gateway on <span class="gradient">your machine.</span></h2>
-      <p>This public control surface never needs to become your AI server. The website can be visited from anywhere; the actual gateway, credentials, prompts and model traffic stay on the user's computer at <b>127.0.0.1</b>.</p>
-      <div class="actions">
-        <a class="btn primary" href="#connect">Connect local gateway →</a>
-        <a class="btn" href="https://github.com/viditshah5656/gemini-web2api" target="_blank" rel="noopener">View source ↗</a>
-        <a class="btn" href="../" aria-label="Repository root">Repository files</a>
-      </div>
-    </section>
-
-    <section class="grid">
-      <div class="glass panel">
-        <h3>How the privacy boundary works</h3>
-        <div class="sub">The hosted page is a static interface. It does not proxy model requests through GitHub Pages.</div>
-        <div class="code">PUBLIC PAGE
-    │
-    │ browser UI
-    ▼
-127.0.0.1:8081
-    │
-    ├── Gemini Web
-    ├── Qwen / qwen2api
-    └── ChatGPT-compatible backend
-
-Your prompts and responses stay on the local path above.</div>
-      </div>
-      <div class="glass panel">
-        <h3>What you get locally</h3>
-        <div class="row"><span class="key">Gateway</span><span class="value">127.0.0.1:8081</span></div>
-        <div class="row"><span class="key">Chat API</span><span class="value">/v1/chat/completions</span></div>
-        <div class="row"><span class="key">Responses</span><span class="value">/v1/responses</span></div>
-        <div class="row"><span class="key">Claude</span><span class="value">/v1/messages</span></div>
-        <div class="row"><span class="key">Discovery</span><span class="value ok">/v1/models</span></div>
-      </div>
-    </section>
-
-    <section class="glass local" id="connect">
-      <div class="local-top"><div><h3>Connect to your local gateway</h3><p>Start your local Web2API gateway first. This page only talks to localhost; it never needs your API traffic to pass through the hosted site.</p></div><div class="badge" id="status">● CHECKING</div></div>
-      <div class="test"><input class="input" id="base" value="http://127.0.0.1:8081" aria-label="Local gateway address"><button class="btn primary" id="check">Check /health</button><a class="btn" id="open" href="http://127.0.0.1:8081/" target="_blank" rel="noopener">Open local console ↗</a></div>
-      <div class="result" id="result">Waiting for a local gateway…</div>
-    </section>
-
-    <section class="glass panel" style="margin-top:16px">
-      <h3>From zero to a local OpenAI-compatible API</h3>
-      <div class="steps">
-        <div class="step"><div class="num">01</div><div><b>Get the project</b><p>Use the repository's documented local setup and keep credentials/configuration on the machine.</p></div></div>
-        <div class="step"><div class="num">02</div><div><b>Start the gateway</b><p>Launch the provider backends plus the unified router on localhost.</p></div></div>
-        <div class="step"><div class="num">03</div><div><b>Connect any compatible client</b><p>Point an OpenAI-compatible SDK or application at <code>http://127.0.0.1:8081/v1</code>.</p></div></div>
-        <div class="step"><div class="num">04</div><div><b>Keep the boundary local</b><p>Do not bind the gateway to a public interface unless you intentionally add authentication, TLS and access controls.</p></div></div>
-      </div>
-    </section>
-  </main>
-
-  <footer><div>Built by Vidit Shah · local-first Web2API control surface</div><div class="links"><a href="https://github.com/viditshah5656/gemini-web2api" target="_blank" rel="noopener">GitHub</a><a href="https://github.com/Sophomoresty/gemini-web2api" target="_blank" rel="noopener">Original project · Sophomoresty</a></div></footer>
-</div>
-<script>
-  const base=document.getElementById('base'), statusEl=document.getElementById('status'), result=document.getElementById('result'), open=document.getElementById('open'), check=document.getElementById('check');
-  function normal(){return base.value.trim().replace(/\/+$/,'')||'http://127.0.0.1:8081'}
-  function setState(kind,text){statusEl.textContent='● '+text;statusEl.className='badge'+(kind==='ok'?'':'');}
-  function syncOpen(){open.href=normal()+'/' }
-  async function probe(){const url=normal();syncOpen();setState('','CHECKING');result.textContent='Probing '+url+'/health …';try{const r=await fetch(url+'/health',{cache:'no-store'});const data=await r.text();if(!r.ok)throw new Error('HTTP '+r.status);setState('ok','LOCAL CONNECTED');result.textContent='Gateway is reachable from this browser. '+data.slice(0,260);return true}catch(e){setState('','OFFLINE');result.textContent='No local gateway detected. Start it on 127.0.0.1:8081, then check again. ('+e.message+')';return false}}
-  base.addEventListener('input',syncOpen);check.addEventListener('click',probe);syncOpen();probe();
-</script>
-</body>
-</html>
+Prompts + responses remain on the local path.</div></div><div class="glass panel"><h3>Local API surface</h3><div class="row"><span class="key">Gateway</span><span class="value">127.0.0.1:8081</span></div><div class="row"><span class="key">Chat</span><span class="value">/v1/chat/completions</span></div><div class="row"><span class="key">Responses</span><span class="value">/v1/responses</span></div><div class="row"><span class="key">Messages</span><span class="value">/v1/messages</span></div><div class="row"><span class="key">Models</span><span class="value ok">/v1/models</span></div></div></section><section class="glass local" id="connect"><div class="local-top"><div><h3>Connect to your local gateway</h3><p>Start Infera locally first. This page can then talk directly to localhost without routing your AI traffic through the hosted website.</p></div><div class="badge" id="status">● CHECKING</div></div><div class="test"><input class="input" id="base" value="http://127.0.0.1:8081" aria-label="Local gateway address"><button class="btn primary" id="check">Check /health</button><a class="btn" id="open" href="http://127.0.0.1:8081/" target="_blank" rel="noopener">Open local console ↗</a></div><div class="result" id="result">Waiting for a local gateway…</div></section><section class="glass panel" style="margin-top:16px"><h3>From zero to a local OpenAI-compatible API</h3><div class="steps"><div class="step"><div class="num">01</div><div><b>Install Infera</b><p>Get the repository and keep local configuration, sessions and credentials on your own machine.</p></div></div><div class="step"><div class="num">02</div><div><b>Start the gateway</b><p>Launch the provider adapters and unified router on localhost.</p></div></div><div class="step"><div class="num">03</div><div><b>Connect your app</b><p>Point an OpenAI-compatible SDK or application at <code>http://127.0.0.1:8081/v1</code>.</p></div></div><div class="step"><div class="num">04</div><div><b>Keep the boundary local</b><p>Only expose the gateway beyond localhost when you intentionally add authentication, TLS and network controls.</p></div></div></div></section></main><footer><div>Infera · Built by Vidit Shah</div><div class="links"><a href="https://github.com/viditshah5656/Infera" target="_blank" rel="noopener">GitHub</a><a href="https://github.com/Sophomoresty/gemini-web2api" target="_blank" rel="noopener">Original project · Sophomoresty</a></div></footer></div><script>const base=document.getElementById('base'),statusEl=document.getElementById('status'),result=document.getElementById('result'),open=document.getElementById('open'),check=document.getElementById('check');function normal(){return base.value.trim().replace(/\/+$/,'')||'http://127.0.0.1:8081'}function setState(text){statusEl.textContent='● '+text;statusEl.className='badge'}function syncOpen(){open.href=normal()+'/'}async function probe(){const url=normal();syncOpen();setState('CHECKING');result.textContent='Probing '+url+'/health …';try{const r=await fetch(url+'/health',{cache:'no-store'});const data=await r.text();if(!r.ok)throw new Error('HTTP '+r.status);setState('LOCAL CONNECTED');result.textContent='Gateway is reachable from this browser. '+data.slice(0,260);return true}catch(e){setState('OFFLINE');result.textContent='No local gateway detected. Start Infera on 127.0.0.1:8081, then check again. ('+e.message+')';return false}}base.addEventListener('input',syncOpen);check.addEventListener('click',probe);syncOpen();probe();</script></body></html>
