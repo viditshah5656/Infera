@@ -1,0 +1,36 @@
+# NOTICE
+
+## Upstream attribution
+
+This project is an extended and substantially modified work based on:
+
+Sophomoresty/gemini-web2api
+https://github.com/Sophomoresty/gemini-web2api
+
+The upstream project is distributed under the MIT License. The upstream project's
+copyright and license notices remain applicable to the portions derived from it.
+
+## This repository
+
+Copyright (c) 2026 Vidit Shah
+
+The current repository combines inherited upstream functionality with
+independently developed routing, provider integration, protocol compatibility,
+streaming behavior, developer tooling, UI, documentation, configuration, and
+operational hardening. See `ATTRIBUTIONS.md` for a project-level summary.
+
+## Provider / third-party notice
+
+Gemini, Qwen, ChatGPT/OpenAI, Anthropic/Claude and other provider names and
+trademarks belong to their respective owners. This repository is not an official
+Google, Alibaba, OpenAI, or Anthropic product.
+
+Some bundled provider adapters may contain code originating from projects other
+than the upstream Gemini Web2API repository. Their original licenses and notices
+remain applicable and must be reviewed before redistribution.
+
+## Compatibility notice
+
+"OpenAI-compatible" and "Claude-compatible" describe API-shape compatibility;
+they do not imply endorsement, certification, official integration, or guaranteed
+future compatibility by those providers.
