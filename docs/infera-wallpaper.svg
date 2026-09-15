@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1100" viewBox="0 0 1920 1100" fill="none">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="42%" r="75%"><stop stop-color="#18233b"/><stop offset=".42" stop-color="#0b1220"/><stop offset="1" stop-color="#05070d"/></radialGradient>
+  <radialGradient id="nebula" cx="50%" cy="50%" r="50%"><stop stop-color="#6574ff" stop-opacity=".22"/><stop offset=".55" stop-color="#8b5cf6" stop-opacity=".09"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient>
+  <radialGradient id="planet" cx="32%" cy="27%" r="70%"><stop stop-color="#eef4ff" stop-opacity=".96"/><stop offset=".22" stop-color="#99a8d8" stop-opacity=".68"/><stop offset=".62" stop-color="#263454" stop-opacity=".95"/><stop offset="1" stop-color="#070b14"/></radialGradient>
+  <linearGradient id="horizon" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7890ff" stop-opacity=".24"/><stop offset=".45" stop-color="#5e6cff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
+  <linearGradient id="mountain" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#121b2b"/><stop offset="1" stop-color="#03050a"/></linearGradient>
+  <filter id="blur40"><feGaussianBlur stdDeviation="40"/></filter>
+  <filter id="blur18"><feGaussianBlur stdDeviation="18"/></filter>
+  <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="1920" height="1100" fill="url(#bg)"/>
+<ellipse cx="420" cy="270" rx="520" ry="330" fill="url(#nebula)" filter="url(#blur40)"/>
+<ellipse cx="1440" cy="350" rx="500" ry="360" fill="#2dd4bf" fill-opacity=".06" filter="url(#blur40)"/>
+<ellipse cx="1020" cy="790" rx="760" ry="220" fill="#7c6cff" fill-opacity=".10" filter="url(#blur40)"/>
+<!-- stars -->
+<g fill="#e9efff">
+ <circle cx="82" cy="102" r="2"/><circle cx="180" cy="236" r="1.4"/><circle cx="315" cy="126" r="1.6"/><circle cx="530" cy="178" r="1.2"/><circle cx="680" cy="92" r="2"/><circle cx="846" cy="200" r="1.3"/><circle cx="1004" cy="112" r="1.5"/><circle cx="1188" cy="150" r="1.2"/><circle cx="1377" cy="90" r="1.7"/><circle cx="1550" cy="196" r="1.4"/><circle cx="1734" cy="111" r="2"/><circle cx="1840" cy="278" r="1.2"/>
+ <circle cx="118" cy="454" r="1.2"/><circle cx="342" cy="420" r="1.4"/><circle cx="520" cy="360" r="1.1"/><circle cx="730" cy="466" r="1.4"/><circle cx="927" cy="390" r="1.3"/><circle cx="1100" cy="450" r="1.1"/><circle cx="1288" cy="404" r="1.5"/><circle cx="1478" cy="460" r="1.2"/><circle cx="1698" cy="412" r="1.5"/><circle cx="1812" cy="510" r="1.2"/>
+</g>
+<g fill="#9ec5ff" filter="url(#glow)"><circle cx="420" cy="210" r="1.8"/><circle cx="1320" cy="190" r="1.8"/><circle cx="1660" cy="330" r="1.7"/></g>
+<!-- distant planet -->
+<circle cx="1285" cy="350" r="275" fill="url(#planet)" opacity=".92"/>
+<ellipse cx="1285" cy="350" rx="420" ry="92" transform="rotate(-13 1285 350)" stroke="#9b8cff" stroke-opacity=".32" stroke-width="5"/>
+<ellipse cx="1285" cy="350" rx="455" ry="106" transform="rotate(-13 1285 350)" stroke="#68d9ff" stroke-opacity=".11" stroke-width="2"/>
+<path d="M0 720 C290 662 480 696 690 725 C918 756 1170 754 1410 710 C1610 674 1770 676 1920 716 V1100 H0Z" fill="url(#horizon)"/>
+<!-- mountains -->
+<path d="M0 920 L160 760 L250 855 L370 700 L520 880 L690 650 L835 838 L988 690 L1110 845 L1260 620 L1390 820 L1540 720 L1678 860 L1805 670 L1920 820 V1100 H0Z" fill="url(#mountain)"/>
+<path d="M0 940 L170 820 L275 900 L382 770 L500 918 L680 760 L780 900 L960 790 L1060 914 L1238 744 L1350 894 L1535 812 L1650 918 L1802 760 L1920 864 V1100 H0Z" fill="#060912" opacity=".95"/>
+<path d="M370 700 L430 780 L390 760 L350 792Z M690 650 L742 725 L700 705 L660 754Z M1260 620 L1320 710 L1278 687 L1230 730Z M1805 670 L1865 750 L1818 726 L1776 760Z" fill="#ced8f3" fill-opacity=".16"/>
+<!-- ground reflection -->
+<rect y="930" width="1920" height="170" fill="#020409" opacity=".66"/>
+<path d="M0 992 C400 955 610 1050 920 1008 C1250 962 1490 1035 1920 982" stroke="#788cff" stroke-opacity=".18" stroke-width="3"/>
+<path d="M290 1040 C520 1022 670 1060 860 1038 M1120 1045 C1360 1022 1530 1060 1770 1034" stroke="#5ee7ff" stroke-opacity=".08" stroke-width="2"/>
+</svg>
