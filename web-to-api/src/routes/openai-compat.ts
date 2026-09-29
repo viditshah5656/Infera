@@ -63,6 +63,25 @@ export function openaiRoutes(registry: ProviderRegistry, errorNotifier: ErrorNot
     const isAuto = body.model === AUTO_MODEL_ID;
 
     if (isAuto) {
+      if (isStream) {
+        c.header('Content-Type', 'text/event-stream');
+        c.header('Cache-Control', 'no-cache');
+        c.header('Connection', 'keep-alive');
+        return stream(c, async (s) => {
+          await writeAutoStreamResponse(
+            s,
+            registry,
+            runId,
+            body.model,
+            messages,
+            featureOpts,
+            featureInstruction,
+            contextTokens,
+            errorNotifier,
+          );
+        });
+      }
+
       const response = await runAutoNonStreamCompletion(registry, runId, messages, featureOpts, pseudoFeatures, featureInstruction, contextTokens);
       if ('error' in response) {
         notifyApiError(errorNotifier, {
@@ -73,14 +92,6 @@ export function openaiRoutes(registry: ProviderRegistry, errorNotifier: ErrorNot
           message: response.error.message,
         });
         return c.json({ error: response.error }, 502 as any);
-      }
-      if (isStream) {
-        c.header('Content-Type', 'text/event-stream');
-        c.header('Cache-Control', 'no-cache');
-        c.header('Connection', 'keep-alive');
-        return stream(c, async (s) => {
-          await writeNonStreamBodyAsSse(s, runId, response.body, contextTokens);
-        });
       }
       return c.json(response.body);
     }
@@ -267,6 +278,79 @@ export function openaiRoutes(registry: ProviderRegistry, errorNotifier: ErrorNot
   });
 
   return app;
+}
+
+async function writeAutoStreamResponse(
+  s: { write: (chunk: string) => Promise<void> },
+  registry: ProviderRegistry,
+  runId: string,
+  requestedModel: string,
+  messages: Message[],
+  featureOpts: { tools: any; toolChoice: any; responseFormat: any },
+  featureInstruction: string,
+  contextTokens: number,
+  errorNotifier: ErrorNotifier | null,
+): Promise<void> {
+  const availableModels = new Set((await registry.allModels()).map(model => model.id));
+  let lastError = 'No authenticated providers are available';
+
+  for (const modelId of getAutoModelOrder()) {
+    if (!availableModels.has(modelId)) continue;
+
+    try {
+      const { provider, model } = await registry.resolve(modelId);
+      if (!(await provider.isAuthenticated())) continue;
+
+      const responseModel = modelId;
+      let isFirst = true;
+      let fullContent = '';
+      let fullReasoning = '';
+      let emitted = false;
+      let failed = false;
+
+      for await (const event of provider.chat({
+        model,
+        messages,
+        stream: true,
+        tools: featureOpts.tools,
+        featureInstruction,
+      })) {
+        if (event.type === 'text_delta') fullContent += event.delta;
+        if (event.type === 'thinking_delta') fullReasoning += event.delta;
+        if (event.type === 'error') {
+          failed = true;
+          lastError = event.message;
+          break;
+        }
+
+        emitted = true;
+        const chunk = formatStreamChunk(runId, responseModel, event, isFirst);
+        await s.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        isFirst = false;
+      }
+
+      if (failed && !emitted) continue;
+      if (failed) break;
+
+      await writeStreamUsage(s, runId, responseModel, contextTokens, estimateTextTokens(`${fullContent}${fullReasoning}`));
+      await s.write(`data: ${formatDoneChunk()}\n\n`);
+      return;
+    } catch (err) {
+      lastError = (err as Error).message;
+      continue;
+    }
+  }
+
+  notifyApiError(errorNotifier, {
+    route: '/v1/chat/completions',
+    model: requestedModel,
+    status: 502,
+    runId,
+    message: lastError,
+  });
+  const errorChunk = formatStreamChunk(runId, requestedModel, { type: 'error', message: lastError }, false);
+  await s.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
+  await s.write(`data: ${formatDoneChunk()}\n\n`);
 }
 
 function notifyApiError(errorNotifier: ErrorNotifier | null, event: {

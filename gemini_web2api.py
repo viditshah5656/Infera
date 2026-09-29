@@ -1045,6 +1045,12 @@ def parse_tool_calls(text: str) -> tuple:
 # ─── HTTP Handler ────────────────────────────────────────────────────────────
 
 class GeminiHandler(BaseHTTPRequestHandler):
+    def handle(self):
+        try:
+            super().handle()
+        except CLIENT_DISCONNECT_ERRORS:
+            pass
+
     def log_message(self, format, *args):
         client_ip = self.client_address[0] if self.client_address else "-"
         log(f"{client_ip} {format % args}")
@@ -1267,6 +1273,7 @@ class GeminiHandler(BaseHTTPRequestHandler):
                                "model": model_name, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]}
                 self.wfile.write(f"data: {json.dumps(first_chunk)}\n\n".encode())
                 self.wfile.write(b": phase=generating\n\n")
+                self.wfile.flush()
 
                 buffer = ""
                 in_tool_mode = False
